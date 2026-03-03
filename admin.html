@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Painel Administrativo - Opersan</title>
+    <link rel="stylesheet" href="admin.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body>
+    <div class="admin-container">
+
+        <!-- HEADER -->
+        <header class="admin-header">
+            <div class="header-left">
+                <i data-lucide="shield-check" class="logo-icon"></i>
+                <h1>Painel Administrativo</h1>
+            </div>
+            <div class="header-right">
+                <span class="admin-user-chip">
+                    <span class="admin-user-avatar">A</span>
+                    <span id="admin-user-name">Administrador</span>
+                </span>
+                <a href="index.html" class="btn-back">
+                    <i data-lucide="arrow-left"></i> Voltar
+                </a>
+            </div>
+        </header>
+
+        <!-- STATS -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-icon users-bg"><i data-lucide="users"></i></div>
+                <div class="stat-info">
+                    <span class="stat-label">USUÁRIOS</span>
+                    <h2 id="total-users">0</h2>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon sectors-bg"><i data-lucide="layers"></i></div>
+                <div class="stat-info">
+                    <span class="stat-label">SETORES</span>
+                    <h2 id="total-sectors">0</h2>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon admins-bg"><i data-lucide="shield"></i></div>
+                <div class="stat-info">
+                    <span class="stat-label">ADMINS</span>
+                    <h2 id="total-admins">0</h2>
+                </div>
+            </div>
+        </div>
+
+        <!-- ABAS -->
+        <div class="admin-tabs">
+            <button id="tab-users-btn" class="tab-btn active" onclick="switchTab('users')">
+                <i data-lucide="user-cog"></i> Gerenciar Usuários
+            </button>
+            <button id="tab-sectors-btn" class="tab-btn" onclick="switchTab('sectors')">
+                <i data-lucide="layers"></i> Gerenciar Setores
+            </button>
+            <button id="tab-permissoes-btn" class="tab-btn" onclick="switchTab('permissoes')">
+                <i data-lucide="eye"></i> Permissões de Visibilidade
+            </button>
+        </div>
+
+        <!-- ══ SEÇÃO USUÁRIOS ══════════════════════════════════════════════ -->
+        <div id="section-users">
+
+            <section class="card">
+                <div class="section-header">
+                    <i data-lucide="user-plus"></i>
+                    <h3>Novo Usuário</h3>
+                </div>
+                <div class="creation-layout">
+
+                    <form id="user-form" class="admin-form">
+                        <div class="form-grid-4">
+                            <div class="form-group">
+                                <label for="user-email">EMAIL (LOGIN)</label>
+                                <input type="email" id="user-email" placeholder="joao@empresa.com" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="user-name">NOME DE EXIBIÇÃO</label>
+                                <input type="text" id="user-name" placeholder="Ex: João Silva">
+                            </div>
+                            <div class="form-group">
+                                <label for="user-password">SENHA</label>
+                                <input type="password" id="user-password" placeholder="••••••••" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="user-role">PAPEL</label>
+                                <select id="user-role">
+                                    <option value="user">Usuário</option>
+                                    <option value="admin">Admin</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label>SETORES COM ACESSO</label>
+                            <div id="sectors-list-badges" class="badge-container">
+                                <span class="badge-loading">Carregando setores...</span>
+                            </div>
+                        </div>
+
+                    </form>
+
+                    <!-- BOTÃO CRIAR USUÁRIO (compacto) -->
+                    <div class="preview-create-aside">
+                        <button type="submit" form="user-form" class="btn-submit btn-submit--aside">
+                            <i data-lucide="user-plus"></i> Criar Usuário
+                        </button>
+                    </div>
+
+                </div>
+            </section>
+
+            <section class="card">
+                <div class="section-header section-header--with-search">
+                    <div class="section-header-left">
+                        <i data-lucide="users"></i>
+                        <h3>Todos os Usuários</h3>
+                    </div>
+                    <div class="table-search-wrap">
+                        <i data-lucide="search"></i>
+                        <input type="text" id="search-users" class="table-search-input" placeholder="Buscar usuário...">
+                    </div>
+                </div>
+                <div class="table-responsive">
+                    <table class="admin-table">
+                        <thead>
+                            <tr>
+                                <th>Email</th>
+                                <th>Nome</th>
+                                <th>Setores</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="users-table-body"></tbody>
+                    </table>
+                </div>
+            </section>
+
+        </div><!-- /#section-users -->
+
+        <!-- ══ SEÇÃO SETORES ═══════════════════════════════════════════════ -->
+        <div id="section-sectors" class="hidden">
+
+            <section class="card">
+                <div class="section-header">
+                    <i data-lucide="plus-circle"></i>
+                    <h3>Novo Setor</h3>
+                </div>
+                <div class="creation-layout">
+
+                    <form id="sector-form" class="admin-form">
+                        <div class="form-grid-2">
+                            <div class="form-group">
+                                <label for="sector-name">NOME DO SETOR</label>
+                                <input type="text" id="sector-name" placeholder="Ex: Jurídico" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="sector-description">DESCRIÇÃO (OPCIONAL)</label>
+                                <input type="text" id="sector-description" placeholder="Breve descrição do setor">
+                            </div>
+                        </div>
+                    </form>
+
+                    <!-- BOTÃO CRIAR SETOR (compacto) -->
+                    <div class="preview-create-aside">
+                        <button type="submit" form="sector-form" class="btn-submit btn-submit--aside">
+                            <i data-lucide="plus"></i> Criar Setor
+                        </button>
+                    </div>
+
+                </div>
+            </section>
+
+            <section class="card">
+                <div class="section-header section-header--with-search">
+                    <div class="section-header-left">
+                        <i data-lucide="layers"></i>
+                        <h3>Todos os Setores</h3>
+                    </div>
+                    <div class="table-search-wrap">
+                        <i data-lucide="search"></i>
+                        <input type="text" id="search-sectors" class="table-search-input" placeholder="Buscar setor...">
+                    </div>
+                </div>
+                <div class="table-responsive">
+                    <table class="admin-table">
+                        <thead>
+                            <tr>
+                                <th>Nome</th>
+                                <th>Descrição</th>
+                                <th>Criado em</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="sectors-table-body"></tbody>
+                    </table>
+                </div>
+            </section>
+
+        </div><!-- /#section-sectors -->
+
+        <!-- ══ SEÇÃO PERMISSÕES DE VISIBILIDADE ═══════════════════════════ -->
+        <div id="section-permissoes" class="hidden">
+
+            <section class="card">
+                <div class="section-header">
+                    <i data-lucide="eye"></i>
+                    <h3>Permissões de Visibilidade</h3>
+                </div>
+                <p class="section-desc-text">
+                    Defina quais contratos cada usuário pode visualizar além dos seus próprios.
+                    Selecione um usuário à esquerda e configure o acesso por setor ou por colega.
+                </p>
+
+                <div class="perm-layout">
+
+                    <!-- Coluna esquerda: lista de viewers -->
+                    <div class="perm-viewers-col">
+                        <div class="perm-col-header">
+                            <span class="perm-col-title">
+                                <i data-lucide="users"></i> USUÁRIOS
+                            </span>
+                        </div>
+                        <div class="perm-search-wrap">
+                            <i data-lucide="search"></i>
+                            <input type="text" id="search-perm-viewer"
+                                class="perm-search-input"
+                                placeholder="Buscar usuário...">
+                        </div>
+                        <div id="perm-viewers-list" class="perm-viewers-list">
+                            <p class="preview-empty">Carregando...</p>
+                        </div>
+                    </div>
+
+                    <!-- Coluna direita: painel de configuração -->
+                    <div class="perm-targets-col">
+
+                        <!-- Estado vazio -->
+                        <div id="perm-painel-vazio" class="perm-painel-vazio">
+                            <i data-lucide="mouse-pointer-click"></i>
+                            <p>Selecione um usuário ao lado para gerenciar seus acessos</p>
+                        </div>
+
+                        <!-- Painel com conteúdo -->
+                        <div id="perm-targets-painel" class="hidden">
+
+                            <!-- Header do viewer selecionado -->
+                            <div id="perm-painel-header" class="perm-painel-header"></div>
+
+                            <!-- Corpo com scroll -->
+                            <div class="perm-painel-body">
+
+                                <!-- SEÇÃO: Acesso por Setor -->
+                                <div class="perm-section">
+                                    <div class="perm-section-title">
+                                        <i data-lucide="building-2"></i>
+                                        <span>ACESSO POR SETOR</span>
+                                    </div>
+                                    <p class="perm-section-desc">Libere acesso para ver <strong>todos os contratos</strong> de um setor inteiro.</p>
+                                    <div id="perm-setores-grid" class="perm-setores-grid"></div>
+                                </div>
+
+                                <!-- Divisor -->
+                                <div class="perm-divider"></div>
+
+                                <!-- SEÇÃO: Acesso por Usuário -->
+                                <div class="perm-section">
+                                    <div class="perm-section-title">
+                                        <i data-lucide="user-check"></i>
+                                        <span>ACESSO POR USUÁRIO</span>
+                                    </div>
+                                    <p class="perm-section-desc">Selecione de quais colegas este usuário pode ver os contratos individualmente.</p>
+
+                                    <div class="perm-user-search-wrap">
+                                        <i data-lucide="search"></i>
+                                        <input type="text" id="search-perm-target" class="perm-user-search-input" placeholder="Buscar colega...">
+                                    </div>
+
+                                    <div id="perm-targets-lista" class="perm-targets-lista"></div>
+                                </div>
+
+                            </div>
+
+                            <!-- Rodapé fixo -->
+                            <div class="perm-rodape">
+                                <span id="perm-resumo" class="perm-resumo">Nenhum acesso compartilhado</span>
+                                <div class="perm-rodape-acoes">
+                                    <button class="btn-revogar-tudo" onclick="revogarTodasPermissoes()" type="button">
+                                        <i data-lucide="x-circle"></i> Revogar tudo
+                                    </button>
+                                    <button class="btn-submit" id="btn-salvar-permissoes" onclick="salvarPermissoes()" type="button">
+                                        <i data-lucide="save"></i> Salvar
+                                    </button>
+                                </div>
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                </div>
+            </section>
+
+        </div><!-- /#section-permissoes -->
+
+    </div><!-- /.admin-container -->
+
+    <!-- MODAL: Editar Usuário -->
+    <div id="edit-user-modal" class="modal hidden" onclick="if(event.target===this)closeEditUserModal()">
+        <div class="modal-box">
+            <div class="modal-header">
+                <h3><i data-lucide="user-cog"></i> Editar Usuário</h3>
+                <button type="button" class="btn-close" onclick="closeEditUserModal()">
+                    <i data-lucide="x"></i>
+                </button>
+            </div>
+            <form id="edit-user-form" class="admin-form">
+                <input type="hidden" id="edit-user-id">
+                <div class="form-group">
+                    <label for="edit-user-email">EMAIL (LOGIN)</label>
+                    <input type="email" id="edit-user-email" required>
+                </div>
+                <div class="form-group">
+                    <label for="edit-user-name">NOME DE EXIBIÇÃO</label>
+                    <input type="text" id="edit-user-name">
+                </div>
+                <div class="form-group">
+                    <label for="edit-user-password">NOVA SENHA (deixe em branco para manter)</label>
+                    <input type="password" id="edit-user-password" placeholder="••••••••">
+                </div>
+                <div class="form-group">
+                    <label>SETORES COM ACESSO</label>
+                    <div id="edit-sectors-list" class="badge-container"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn-cancel" onclick="closeEditUserModal()">Cancelar</button>
+                    <button type="submit" class="btn-submit">Salvar Alterações</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL: Editar Setor -->
+    <div id="edit-sector-modal" class="modal hidden" onclick="if(event.target===this)closeEditSectorModal()">
+        <div class="modal-box">
+            <div class="modal-header">
+                <h3><i data-lucide="layers"></i> Editar Setor</h3>
+                <button type="button" class="btn-close" onclick="closeEditSectorModal()">
+                    <i data-lucide="x"></i>
+                </button>
+            </div>
+            <form id="edit-sector-form" class="admin-form">
+                <input type="hidden" id="edit-sector-id">
+                <div class="form-group">
+                    <label for="edit-sector-name">NOME DO SETOR</label>
+                    <input type="text" id="edit-sector-name" required>
+                </div>
+                <div class="form-group">
+                    <label for="edit-sector-description">DESCRIÇÃO</label>
+                    <input type="text" id="edit-sector-description" placeholder="Descrição do setor">
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn-cancel" onclick="closeEditSectorModal()">Cancelar</button>
+                    <button type="submit" class="btn-submit">Salvar Alterações</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL: Confirmar Exclusão -->
+    <div id="delete-modal" class="modal hidden" onclick="if(event.target===this)closeDeleteModal()">
+        <div class="modal-box modal-box--sm">
+            <div class="modal-danger-icon">
+                <i data-lucide="alert-triangle"></i>
+            </div>
+            <h3 class="modal-title">Confirmar Exclusão</h3>
+            <p class="modal-desc">Tem certeza que deseja excluir este item? Esta ação é irreversível.</p>
+            <div class="modal-footer modal-footer--center">
+                <button type="button" class="btn-cancel" onclick="closeDeleteModal()">Cancelar</button>
+                <button type="button" id="confirm-delete-btn" class="btn-danger">Excluir</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast -->
+    <div id="toast" class="toast hidden">
+        <span id="toast-icon"></span>
+        <span id="toast-message"></span>
+    </div>
+
+    <script src="admin.js"></script>
+    <script>lucide.createIcons();</script>
+</body>
+</html>
