@@ -1,4 +1,4 @@
-const API = "http://127.0.0.1:8000";
+const API = "https://agente-ia-62sa.onrender.com";
 
 // Aguarda o DOM carregar
 document.addEventListener("DOMContentLoaded", () => {
