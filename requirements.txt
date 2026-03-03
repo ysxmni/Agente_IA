@@ -1,0 +1,8 @@
+fastapi
+uvicorn
+pypdf
+sqlalchemy
+passlib[bcrypt]
+pydantic
+python-dotenv
+google-genai
