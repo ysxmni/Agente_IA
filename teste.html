@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TESTE - Analisador de Contratos</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+        .upload-area {
+            border: 2px dashed #ccc;
+            padding: 30px;
+            text-align: center;
+            margin-bottom: 20px;
+            cursor: pointer;
+            border-radius: 8px;
+        }
+        .upload-area:hover {
+            background: #f9f9f9;
+        }
+        #status {
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 8px;
+            font-weight: bold;
+            text-align: center;
+        }
+        #resumoTexto {
+            padding: 20px;
+            background: #f9f9f9;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            min-height: 200px;
+            white-space: pre-wrap;
+            line-height: 1.6;
+            margin-top: 20px;
+        }
+        .chat-area {
+            margin-top: 30px;
+            border-top: 2px solid #eee;
+            padding-top: 20px;
+        }
+        #chatBox {
+            height: 400px;
+            overflow-y: auto;
+            border: 2px solid #ddd;
+            padding: 15px;
+            margin-bottom: 15px;
+            border-radius: 8px;
+            background: #f9f9f9;
+        }
+        .msg {
+            margin: 10px 0;
+            padding: 10px 15px;
+            border-radius: 8px;
+            max-width: 80%;
+        }
+        .msg.user {
+            background: #007bff;
+            color: white;
+            margin-left: auto;
+            text-align: right;
+        }
+        .msg.bot {
+            background: white;
+            border: 1px solid #ddd;
+        }
+        .input-group {
+            display: flex;
+            gap: 10px;
+        }
+        input[type="text"] {
+            flex: 1;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+        button {
+            padding: 12px 30px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .debug {
+            background: #fffacd;
+            border: 2px solid #ffd700;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+            font-family: monospace;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🤖 Teste Simplificado - Analisador de Contratos</h1>
+        
+        <div class="debug">
+            <strong>DEBUG MODE ATIVADO</strong><br>
+            Abra o Console (F12) para ver os logs detalhados
+        </div>
+
+        <!-- Upload -->
+        <div class="upload-area" onclick="document.getElementById('arquivo').click()">
+            <input type="file" id="arquivo" accept=".pdf" style="display: none;">
+            <h3>📄 Clique para selecionar um PDF</h3>
+            <p>Máximo 10MB</p>
+        </div>
+
+        <!-- Status -->
+        <div id="status" style="display: none;"></div>
+
+        <!-- Resumo -->
+        <div>
+            <h3>📋 Resumo do Contrato:</h3>
+            <div id="resumoTexto">
+                Aguardando upload do contrato...
+            </div>
+        </div>
+
+        <!-- Chat -->
+        <div class="chat-area">
+            <h3>💬 Perguntas sobre o Contrato</h3>
+            <div id="chatBox">
+                <div class="msg bot">Olá! Faça upload de um contrato PDF para começar.</div>
+            </div>
+            <div class="input-group">
+                <input type="text" id="pergunta" placeholder="Digite sua pergunta..." disabled>
+                <button id="btnEnviar" onclick="enviarPergunta()" disabled>Enviar</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API = "http://127.0.0.1:8000";
+        let contratoCarregado = false;
+
+        console.log("🚀 Sistema iniciado");
+
+        // PREVENIR recarregamento acidental da página
+        window.addEventListener('beforeunload', function(e) {
+            if (contratoCarregado) {
+                console.warn("⚠️ Tentativa de sair da página com contrato carregado");
+                e.preventDefault();
+                e.returnValue = '';
+                return '';
+            }
+        });
+
+        // ===== UPLOAD =====
+        document.getElementById('arquivo').addEventListener('change', async function(e) {
+            e.preventDefault(); // PREVENIR comportamento padrão
+            e.stopPropagation(); // PARAR propagação
+            
+            const arquivo = e.target.files[0];
+            if (!arquivo) return;
+
+            console.log("=" .repeat(60));
+            console.log("📤 INÍCIO DO UPLOAD");
+            console.log("Arquivo:", arquivo.name, arquivo.size, "bytes");
+
+            const status = document.getElementById('status');
+            const resumo = document.getElementById('resumoTexto');
+
+            // Mostrar status
+            status.style.display = 'block';
+            status.style.background = '#fff3cd';
+            status.style.color = '#856404';
+            status.innerText = '⏳ PROCESSANDO...';
+            resumo.innerText = 'Aguardando resposta do servidor...';
+
+            console.log("📡 Enviando requisição para:", API + "/upload");
+
+            const formData = new FormData();
+            formData.append('file', arquivo);
+
+            try {
+                const response = await fetch(API + '/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                console.log("📥 Resposta recebida!");
+                console.log("Status HTTP:", response.status);
+                console.log("Headers:", [...response.headers.entries()]);
+
+                const texto = await response.text();
+                console.log("📄 Texto bruto da resposta:", texto);
+
+                let data;
+                try {
+                    data = JSON.parse(texto);
+                    console.log("✅ JSON parseado com sucesso:", data);
+                } catch (e) {
+                    console.error("❌ Erro ao fazer parse do JSON:", e);
+                    throw new Error("Resposta não é JSON válido");
+                }
+
+                if (data.resumo) {
+                    console.log("=" .repeat(60));
+                    console.log("✅ SUCESSO! Atualizando interface...");
+                    console.log("Tamanho do resumo:", data.resumo.length, "caracteres");
+                    console.log("Primeiros 100 caracteres:", data.resumo.substring(0, 100));
+
+                    // ATUALIZAR RESUMO - FORÇAR que fique
+                    resumo.innerHTML = ''; // Limpar
+                    resumo.textContent = data.resumo; // Inserir texto
+                    resumo.style.background = '#d4edda';
+                    resumo.style.borderColor = '#28a745';
+                    resumo.style.color = '#155724';
+                    resumo.style.display = 'block';
+                    resumo.setAttribute('data-loaded', 'true'); // Marcador
+
+                    console.log("📝 Resumo inserido no elemento");
+                    console.log("Texto no DOM:", resumo.textContent.substring(0, 100));
+
+                    // ATUALIZAR STATUS
+                    status.style.background = '#d4edda';
+                    status.style.color = '#155724';
+                    status.innerText = '✅ ANÁLISE CONCLUÍDA!';
+
+                    // Habilitar chat
+                    contratoCarregado = true;
+                    document.getElementById('pergunta').disabled = false;
+                    document.getElementById('btnEnviar').disabled = false;
+
+                    // Adicionar mensagem no chat
+                    adicionarMensagem('bot', `✅ Contrato "${data.nome}" analisado!\n\nCaracteres: ${data.caracteres}\n\nVocê pode fazer perguntas agora.`);
+
+                    console.log("=" .repeat(60));
+                    console.log("🎉 PROCESSO COMPLETO!");
+                    
+                    // Verificar após 3 segundos
+                    setTimeout(() => {
+                        const textoAtual = resumo.textContent;
+                        console.log("🔍 VERIFICAÇÃO após 3 segundos:");
+                        console.log("Texto ainda está lá?", textoAtual.length > 0);
+                        console.log("Tamanho:", textoAtual.length, "caracteres");
+                        console.log("Atributo data-loaded:", resumo.getAttribute('data-loaded'));
+                        if (textoAtual.length === 0) {
+                            console.error("❌ ERRO CRÍTICO: O texto sumiu!");
+                            console.error("A página pode ter recarregado ou há outro script interferindo");
+                            alert("❌ ERRO: O texto sumiu! Verifique se a página está recarregando.");
+                        } else {
+                            console.log("✅ Texto permanece no DOM corretamente");
+                        }
+                    }, 3000);
+
+                } else if (data.erro) {
+                    console.error("❌ Erro da API:", data.erro);
+                    status.style.background = '#f8d7da';
+                    status.style.color = '#721c24';
+                    status.innerText = '❌ ERRO';
+                    resumo.textContent = 'Erro: ' + data.erro;
+                    resumo.style.background = '#f8d7da';
+                } else {
+                    console.error("⚠️ Resposta inesperada:", data);
+                    throw new Error("Resposta sem campo 'resumo' ou 'erro'");
+                }
+
+            } catch (error) {
+                console.error("💥 ERRO NA REQUISIÇÃO:", error);
+                status.style.background = '#f8d7da';
+                status.style.color = '#721c24';
+                status.innerText = '❌ ERRO DE CONEXÃO';
+                resumo.textContent = 'Erro: ' + error.message;
+                resumo.style.background = '#f8d7da';
+            }
+            
+            // PREVENIR qualquer ação padrão após processar
+            return false;
+        });
+
+        // ===== PERGUNTAR =====
+        async function enviarPergunta() {
+            if (!contratoCarregado) {
+                alert("Envie um contrato primeiro!");
+                return;
+            }
+
+            const input = document.getElementById('pergunta');
+            const pergunta = input.value.trim();
+            if (!pergunta) return;
+
+            console.log("❓ Enviando pergunta:", pergunta);
+
+            adicionarMensagem('user', pergunta);
+            input.value = '';
+
+            const formData = new FormData();
+            formData.append('pergunta', pergunta);
+
+            try {
+                const response = await fetch(API + '/perguntar', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+                console.log("✅ Resposta:", data);
+                adicionarMensagem('bot', data.resposta || 'Sem resposta');
+
+            } catch (error) {
+                console.error("❌ Erro:", error);
+                adicionarMensagem('bot', 'Erro ao processar pergunta');
+            }
+        }
+
+        // Permitir Enter
+        document.getElementById('pergunta').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') enviarPergunta();
+        });
+
+        // ===== CHAT =====
+        function adicionarMensagem(tipo, texto) {
+            const chat = document.getElementById('chatBox');
+            const div = document.createElement('div');
+            div.className = 'msg ' + tipo;
+            div.textContent = texto;
+            chat.appendChild(div);
+            chat.scrollTop = chat.scrollHeight;
+            console.log("💬 Mensagem adicionada:", tipo, texto.substring(0, 50));
+        }
+
+        console.log("✅ Script carregado completamente");
+    </script>
+</body>
+</html>
+
+
+ <div class="form-group">
+                        <label>PAPEL</label>
+                        <select id="user-role">
+                            <option value="user">Usuário</option>
+                            <option value="admin">Admin</option>
+                        </select>
+                    </div>
+
+
+                    document.addEventListener("DOMContentLoaded", async () => {
+    // Compatibilidade de token
+    if (!localStorage.getItem("userToken") && localStorage.getItem("token")) {
+        localStorage.setItem("userToken", localStorage.getItem("token"));
+    }
+
+    // Redireciona se não tiver token
+    if (!usuario.token) {
+        window.location.href = "login.html";
+        return;
+    }
+
+    try {
+        await autenticarUsuario();
+    } catch (err) {
+        console.error("❌ Autenticação falhou:", err.message);
+        localStorage.removeItem("userToken");
+        window.location.href = "login.html";
+        return;
+    }
+
+    if (typeof renderizarSidebar === "function") {
+        renderizarSidebar({ username: usuario.nome, role: usuario.role, roles: usuario.roles });
+    }
+
+    configurarSetores();
+    configurarPerfil();
+    renderizarSetoresChat();
+    configurarEventos();

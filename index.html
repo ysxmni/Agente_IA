@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Opersan - Painel de Análise</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Lora:wght@700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body>
+    <div class="app-container">
+
+        <!-- Sidebar gerada pelo sidebar.js -->
+        <aside id="sidebar-container" class="sidebar"></aside>
+
+        <!-- Conteúdo principal -->
+        <main class="main-content">
+
+            <!-- ABA: Nova Análise -->
+            <div id="abaNovaAnalise" class="tab-content">
+                <header class="content-header">
+                    <div class="content-header-text">
+                        <h2>Análise em Tempo Real</h2>
+                        <p>Importe seu contrato para iniciar a auditoria inteligente.</p>
+                    </div>
+                    <button type="button" onclick="novaAnalise()" class="btn-reset">
+                        <i data-lucide="refresh-cw"></i> Resetar
+                    </button>
+                </header>
+
+                <div class="analysis-grid">
+                    <!-- Coluna Esquerda -->
+                    <div class="left-column">
+
+                        <div class="card upload-card">
+                            <div class="card-header">
+                                <h3>Documento Fonte</h3>
+                            </div>
+                            <div class="card-body">
+                                <div class="drop-zone" onclick="document.getElementById('inputArquivo').click()">
+                                    <input type="file" id="inputArquivo" class="hidden" accept=".pdf">
+                                    <div class="drop-icon">
+                                        <i data-lucide="upload-cloud"></i>
+                                    </div>
+                                    <div class="drop-labels">
+                                        <span class="drop-text">Subir Contrato PDF</span>
+                                        <span class="drop-subtext">Tamanho máximo: 10MB</span>
+                                    </div>
+                                </div>
+                                <div id="status" class="status-badge hidden"></div>
+                            </div>
+                        </div>
+
+                        <div class="card summary-card">
+                            <div class="card-header">
+                                <h3>Resumo Estruturado</h3>
+                            </div>
+                            <div class="card-body">
+                                <div class="summary-preview-container">
+                                    <div id="resumoTexto" class="summary-text-preview italic">
+                                        Nenhum documento processado.
+                                    </div>
+                                    <div class="summary-footer">
+                                        <button type="button" onclick="abrirModalResumo()" class="btn-view-full">
+                                            Ver Análise Completa
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div><!-- /.left-column -->
+
+                    <!-- Coluna Direita: Chat -->
+                    <div class="right-column">
+                        <div class="card chat-card">
+
+                            <div class="chat-header">
+                                <div class="chat-setor-selector">
+                                    <div class="setor-label">
+                                        <i data-lucide="message-square"></i>
+                                        <span>CONVERSAR COM:</span>
+                                    </div>
+                                    <div id="chatSetorButtons" class="chat-setor-buttons"></div>
+                                </div>
+                                <button type="button" onclick="limparChatVisual()" class="btn-limpar-chat" title="Limpar conversa">
+                                    <i data-lucide="eraser"></i>
+                                    <span>Limpar Chat</span>
+                                </button>
+                            </div>
+
+                            <div id="chatBox" class="chat-messages">
+                                <div class="message system">
+                                    <div class="message-content">Sistema pronto. Por favor, importe o contrato.</div>
+                                </div>
+                            </div>
+
+                            <div class="chat-input-area">
+                                <!-- SEM form — input e botão diretos, sem risco de submit nativo -->
+                                <div id="formChat" class="input-container">
+                                    <input
+                                        type="text"
+                                        id="perguntaUser"
+                                        placeholder="Ex: Quais são as multas?"
+                                        autocomplete="off"
+                                        autocorrect="off"
+                                        autocapitalize="off"
+                                        spellcheck="false"
+                                        data-lpignore="true"
+                                        data-1p-ignore="true">
+                                    <button type="button" id="btnEnviar" class="btn-send" disabled>
+                                        <i data-lucide="send"></i>
+                                    </button>
+                                </div>
+                            </div>
+
+                        </div><!-- /.chat-card -->
+                    </div><!-- /.right-column -->
+                </div><!-- /.analysis-grid -->
+            </div><!-- /#abaNovaAnalise -->
+
+            <!-- ABA: Biblioteca -->
+            <div id="abaHistorico" class="tab-content hidden">
+                <header class="content-header">
+                    <div class="content-header-text">
+                        <h2>Biblioteca Jurídica</h2>
+                        <p>Contratos processados anteriormente.</p>
+                    </div>
+                </header>
+
+                <div class="filter-section">
+                    <div class="filter-header">
+                        <i data-lucide="layers"></i>
+                        <span class="filter-label">FILTRAR POR SETOR</span>
+                    </div>
+                    <div id="filtroSetores" class="filter-buttons"></div>
+                </div>
+
+                <div class="search-bar-container">
+                    <div class="search-input-wrapper">
+                        <i data-lucide="search"></i>
+                        <input
+                            type="text"
+                            id="searchInput"
+                            class="search-input"
+                            placeholder="Pesquisar contratos por nome, data ou conteúdo...">
+                        <button type="button" id="clearSearch" class="clear-search-btn hidden">
+                            <i data-lucide="x"></i>
+                        </button>
+                    </div>
+                    <div id="searchResultCount" class="search-result-count hidden"></div>
+                </div>
+
+                <div id="listaContratos" class="history-grid"></div>
+            </div><!-- /#abaHistorico -->
+
+        </main>
+    </div><!-- /.app-container -->
+
+    <!-- MODAL: Excluir contrato -->
+    <div id="deleteModal" class="modal-overlay hidden" onclick="if(event.target===this)fecharModal('deleteModal')">
+        <div class="modal-card">
+            <div class="modal-icon warning"><i data-lucide="alert-triangle"></i></div>
+            <h3>Excluir Registro?</h3>
+            <p>Esta ação removerá todos os dados de análise.</p>
+            <div class="modal-actions">
+                <button type="button" onclick="fecharModal('deleteModal')" class="btn-secondary">Cancelar</button>
+                <button type="button" id="confirmDeleteBtn" class="btn-danger">Excluir</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: Nova Análise / Resetar -->
+    <div id="novaAnaliseModal" class="modal-overlay hidden" onclick="if(event.target===this)fecharModal('novaAnaliseModal')">
+        <div class="modal-card">
+            <div class="modal-icon info"><i data-lucide="refresh-cw"></i></div>
+            <h3>Nova Análise?</h3>
+            <p>Isso limpará os dados atuais.</p>
+            <div class="modal-actions">
+                <button type="button" onclick="fecharModal('novaAnaliseModal')" class="btn-secondary">Cancelar</button>
+                <button type="button" onclick="executarResete()" class="btn-primary">Resetar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: Resumo Completo -->
+    <div id="resumoModal" class="modal-overlay hidden" onclick="if(event.target===this)fecharModal('resumoModal')">
+        <div class="modal-card large">
+            <div class="modal-header">
+                <div class="header-title">
+                    <i data-lucide="book-open"></i>
+                    <h3>Análise Completa</h3>
+                </div>
+                <button type="button" onclick="fecharModal('resumoModal')" class="btn-close">
+                    <i data-lucide="x"></i>
+                </button>
+            </div>
+            <div id="textoFull" class="modal-body prose-legal"></div>
+            <div class="modal-footer">
+                <!-- Inserido via script.js -->
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: Logout -->
+    <div id="logoutModal" class="modal-overlay hidden" onclick="if(event.target===this)fecharModal('logoutModal')">
+        <div class="modal-card">
+            <div class="modal-icon info"><i data-lucide="log-out"></i></div>
+            <h3>Sair da Conta?</h3>
+            <p>Você será desconectado do sistema.</p>
+            <div class="modal-actions">
+                <button type="button" onclick="fecharModal('logoutModal')" class="btn-secondary">Cancelar</button>
+                <button type="button" onclick="confirmarLogout()" class="btn-primary">Sair</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="auth.js"></script>
+    <script src="sidebar.js"></script>
+    <script src="script.js"></script>
+    <script>lucide.createIcons();</script>
+</body>
+</html>

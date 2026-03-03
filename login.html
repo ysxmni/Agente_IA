@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Opersan - Análise Inteligente de Contratos</title>
+    <link rel="stylesheet" href="login.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Lora:wght@700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body>
+    <div class="container">
+        <main class="content">
+            <!-- Lado Esquerdo: Informações (Inalterado ) -->
+            <section class="info-section">
+                <div class="logo">
+                    <div class="logo-icon">
+                        <i data-lucide="file-text"></i>
+                    </div>
+                    <h1>Opersan</h1>
+                </div>
+                <div class="hero-text">
+                    <h2>Análise Inteligente   
+ <span class="highlight">de Contratos</span></h2>
+                    <p>Otimize sua revisão jurídica com IA avançada. Faça perguntas em linguagem natural e obtenha insights instantâneos sobre seus documentos.</p>
+                </div>
+                <div class="stats-container">
+                    <div class="stat-card">
+                        <span class="stat-value">10x</span>
+                        <span class="stat-label">Mais rápido</span>
+                    </div>
+                    <div class="stat-card">
+                        <span class="stat-value">99%</span>
+                        <span class="stat-label">Precisão</span>
+                    </div>
+                    <div class="stat-card">
+                        <span class="stat-value">24/7</span>
+                        <span class="stat-label">Disponível</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Lado Direito: Formulário de Login -->
+            <section class="login-section">
+                <!-- Card de Login -->
+                <div class="login-card" id="loginCard">
+                    <h3>Entrar</h3>
+                    <p class="subtitle">Acesse sua conta para continuar</p>
+
+                    <form id="loginform">
+                        <div class="input-group">
+                            <label for="email">Email</label>
+                            <div class="input-wrapper">
+                                <i data-lucide="mail"></i>
+                                <input id="email" type="email" placeholder="seu@email.com" required>
+                            </div>
+                        </div>
+
+                        <div class="input-group">
+                            <label for="password">Senha</label>
+                            <div class="input-wrapper">
+                                <i data-lucide="lock"></i>
+                                <input type="password" id="password" placeholder="••••••••" required>
+                            </div>
+                        </div>
+
+                        <button type="submit" class="btn-submit">
+                            Entrar <i data-lucide="arrow-right"></i>
+                        </button>
+                    </form>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script src="login.js"></script>
+</body>
+</html>
