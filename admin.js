@@ -2,7 +2,7 @@
 //  OPERSAN — admin.js  (permissões por usuário E por setor)
 // ════════════════════════════════════════════════════════════════════════════
 
-const API   = "http://127.0.0.1:8000";
+const API   = "https://agente-ia-62sa.onrender.com";
 const token = localStorage.getItem("userToken") || localStorage.getItem("token") || "";
 
 // ─── ESTADO ──────────────────────────────────────────────────────────────────

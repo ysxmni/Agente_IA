@@ -2,7 +2,7 @@
 //  AUTH.JS — Opersan (versão limpa)
 // ════════════════════════════════════════════════════════════
 
-const API_URL = "http://127.0.0.1:8000";
+const API_URL = "https://agente-ia-62sa.onrender.com";
 
 async function verificarAutenticacaoUsuario() {
     const userToken = localStorage.getItem('userToken');
