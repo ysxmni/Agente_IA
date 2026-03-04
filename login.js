@@ -1,12 +1,14 @@
 // ════════════════════════════════════════════════════════════
-//  LOGIN.JS — Opersan (login fluido com feedback visual)
+//  LOGIN.JS — Opersan
 // ════════════════════════════════════════════════════════════
 
 const API = "https://agente-ia-62sa.onrender.com";
 
-document.addEventListener("DOMContentLoaded", () => {
-    lucide.createIcons();
+// SVG inline reutilizável para o botão (sem dependência do Lucide)
+const SVG_ARROW = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12,5 19,12 12,19"/></svg>`;
+const SVG_CHECK = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20,6 9,17 4,12"/></svg>`;
 
+document.addEventListener("DOMContentLoaded", () => {
     // Se já estiver logado com token válido, redireciona direto
     const tokenSalvo = localStorage.getItem("userToken") || localStorage.getItem("token");
     if (tokenSalvo) {
@@ -46,11 +48,9 @@ async function _verificarTokenERedirecionarSeValido(token) {
             signal: AbortSignal.timeout(4000)
         });
         if (res.ok) {
-            // Token ainda válido — redireciona sem precisar logar de novo
             window.location.href = "index.html";
         }
     } catch {
-        // Token expirado ou servidor offline — deixa na tela de login normalmente
         localStorage.removeItem("userToken");
         localStorage.removeItem("token");
     }
@@ -59,15 +59,14 @@ async function _verificarTokenERedirecionarSeValido(token) {
 // ─── LOGIN PRINCIPAL ──────────────────────────────────────────────────────────
 
 async function _fazerLogin() {
-    const emailInput  = document.getElementById("email");
-    const senhaInput  = document.getElementById("password");
-    const btnSubmit   = document.querySelector(".btn-submit");
-    const errorEl     = _getOrCreateErrorEl();
+    const emailInput = document.getElementById("email");
+    const senhaInput = document.getElementById("password");
+    const btnSubmit  = document.querySelector(".btn-submit");
+    const errorEl    = _getOrCreateErrorEl();
 
     const email = emailInput?.value.trim();
     const senha = senhaInput?.value.trim();
 
-    // Validação leve no frontend antes de bater no servidor
     if (!email || !senha) {
         _mostrarErro(errorEl, "Preencha e-mail e senha para continuar.");
         if (!email) emailInput?.focus();
@@ -75,7 +74,6 @@ async function _fazerLogin() {
         return;
     }
 
-    // Estado de loading no botão
     _setBtnLoading(btnSubmit, true);
     _limparErro(errorEl);
 
@@ -92,7 +90,6 @@ async function _fazerLogin() {
 
         if (!response.ok) {
             const erro = await response.json().catch(() => ({ detail: "Erro desconhecido" }));
-            // Animação de shake no card ao errar
             _shakeCard();
             _mostrarErro(errorEl, erro.detail || "E-mail ou senha inválidos.");
             senhaInput.value = "";
@@ -107,14 +104,12 @@ async function _fazerLogin() {
             return;
         }
 
-        // Salva token e dados do usuário
         localStorage.setItem("userToken", data.access_token);
-        localStorage.setItem("token",     data.access_token); // compatibilidade
+        localStorage.setItem("token",     data.access_token);
         localStorage.setItem("userName",  data.user?.name || data.user?.username || email);
         localStorage.setItem("userRole",  data.user?.role || "user");
         if (data.user?.id) localStorage.setItem("userId", data.user.id);
 
-        // Feedback de sucesso antes de redirecionar
         _setBtnSuccess(btnSubmit);
         setTimeout(() => {
             window.location.href = "index.html";
@@ -128,7 +123,6 @@ async function _fazerLogin() {
         }
         console.error("❌ Erro ao conectar:", error);
     } finally {
-        // Só restaura o botão se não houve sucesso
         if (btnSubmit && !btnSubmit.classList.contains("btn-success")) {
             _setBtnLoading(btnSubmit, false);
         }
@@ -142,16 +136,14 @@ function _setBtnLoading(btn, loading) {
     btn.disabled = loading;
     btn.innerHTML = loading
         ? `<span class="btn-spinner"></span> Entrando...`
-        : `Entrar <i data-lucide="arrow-right"></i>`;
-    if (!loading && typeof lucide !== "undefined") lucide.createIcons();
+        : `Entrar ${SVG_ARROW}`;
 }
 
 function _setBtnSuccess(btn) {
     if (!btn) return;
     btn.disabled = true;
     btn.classList.add("btn-success");
-    btn.innerHTML = `<i data-lucide="check"></i> Acesso liberado!`;
-    if (typeof lucide !== "undefined") lucide.createIcons();
+    btn.innerHTML = `${SVG_CHECK} Acesso liberado!`;
 }
 
 function _getOrCreateErrorEl() {
@@ -161,7 +153,6 @@ function _getOrCreateErrorEl() {
         el.id        = "loginError";
         el.className = "login-error hidden";
         const form   = document.getElementById("loginform");
-        const btnWrap = form?.querySelector(".btn-submit")?.parentElement || form;
         form?.insertBefore(el, form.querySelector(".btn-submit"));
     }
     return el;
@@ -171,7 +162,6 @@ function _mostrarErro(el, msg) {
     if (!el) return;
     el.textContent = msg;
     el.classList.remove("hidden");
-    // Pequena animação de entrada
     el.style.opacity   = "0";
     el.style.transform = "translateY(-4px)";
     requestAnimationFrame(() => {
