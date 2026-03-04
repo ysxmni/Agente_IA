@@ -175,11 +175,8 @@ body::before {
 
 .input-wrapper {
     position: relative;
-    display: flex;
-    align-items: center;
 }
 
-/* ── ÍCONES DENTRO DOS INPUTS ─────────────────────────────── */
 .input-wrapper svg {
     position: absolute;
     left: 1rem;
@@ -189,8 +186,7 @@ body::before {
     height: 18px;
     color: var(--text-secondary);
     pointer-events: none;
-    display: block;
-    flex-shrink: 0;
+    z-index: 1;
 }
 
 .input-wrapper input {
@@ -203,6 +199,7 @@ body::before {
     font-family: inherit;
     font-size: 1rem;
     transition: border-color 0.2s;
+    display: block;
 }
 
 .input-wrapper input:focus {
