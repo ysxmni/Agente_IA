@@ -275,3 +275,57 @@ body::before {
     from { opacity: 0; transform: translateY(10px); }
     to { opacity: 1; transform: translateY(0); }
 }
+
+/* ── SHAKE DO CARD DE LOGIN AO ERRAR ─────────────────────── */
+@keyframes shake {
+    0%, 100% { transform: translateX(0);    }
+    15%       { transform: translateX(-8px); }
+    30%       { transform: translateX(7px);  }
+    45%       { transform: translateX(-6px); }
+    60%       { transform: translateX(5px);  }
+    75%       { transform: translateX(-3px); }
+    90%       { transform: translateX(2px);  }
+}
+
+.login-card.shake {
+    animation: shake 0.45s ease;
+}
+
+/* ── MENSAGEM DE ERRO NO LOGIN ───────────────────────────── */
+.login-error {
+    background: rgba(239, 68, 68, .1);
+    border: 1px solid rgba(239, 68, 68, .3);
+    color: #fca5a5;
+    border-radius: 8px;
+    padding: .65rem .9rem;
+    font-size: .82rem;
+    margin-bottom: .75rem;
+    text-align: center;
+}
+
+.login-error.hidden {
+    display: none;
+}
+
+/* ── SPINNER NO BOTÃO DE LOGIN ───────────────────────────── */
+.btn-spinner {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    border: 2px solid rgba(255,255,255,.3);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    vertical-align: middle;
+    margin-right: 4px;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* ── BOTÃO DE LOGIN EM ESTADO SUCESSO ────────────────────── */
+.btn-submit.btn-success {
+    background: #10b981 !important;
+    cursor: default;
+}

@@ -1360,3 +1360,165 @@ input:-webkit-autofill:focus {
     .sidebar, .modal-header, .modal-footer { display: none; }
     .modal-body { padding: 0; max-height: none; overflow: visible; }
 }
+
+/* ── ANIMAÇÃO SKELETON BASE ─────────────────────────────── */
+@keyframes shimmer {
+    0%   { background-position: -400px 0; }
+    100% { background-position:  400px 0; }
+}
+
+.skeleton-line,
+.skeleton-badge,
+.skeleton-avatar,
+.skeleton-nav-item,
+.skeleton-actions,
+.skeleton-card-header,
+.skeleton-card {
+    background: linear-gradient(90deg, #1e293b 25%, #263347 50%, #1e293b 75%);
+    background-size: 400px 100%;
+    animation: shimmer 1.4s ease infinite;
+    border-radius: 6px;
+}
+
+/* ── SKELETON SIDEBAR ────────────────────────────────────── */
+.skeleton-nav-item {
+    height: 40px;
+    margin-bottom: 8px;
+    border-radius: 8px;
+}
+
+.skeleton-user {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.skeleton-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.skeleton-user-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+/* ── SKELETON LINHAS ─────────────────────────────────────── */
+.skeleton-line {
+    height: 12px;
+    border-radius: 4px;
+}
+.skeleton-line.w90 { width: 90%; }
+.skeleton-line.w80 { width: 80%; }
+.skeleton-line.w70 { width: 70%; }
+.skeleton-line.w40 { width: 40%; }
+
+/* ── SKELETON CARDS DA BIBLIOTECA ────────────────────────── */
+.skeleton-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 1rem;
+}
+
+.skeleton-card {
+    border-radius: 12px;
+    overflow: hidden;
+    background: #131c2e;
+    animation: none; /* o card em si não anima, só as partes internas */
+    border: 1px solid #1e2d45;
+}
+
+.skeleton-card-header {
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid #1e2d45;
+    background: #0f1724;
+    height: 56px;
+    animation: shimmer 1.4s ease infinite;
+    background-size: 400px 100%;
+    background-image: linear-gradient(90deg, #0f1724 25%, #182030 50%, #0f1724 75%);
+}
+
+.skeleton-card-body {
+    padding: 1rem 1.25rem;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.skeleton-badge {
+    height: 22px;
+    width: 90px;
+    border-radius: 20px;
+}
+
+.skeleton-actions {
+    height: 34px;
+    width: 120px;
+    border-radius: 8px;
+    margin-top: 8px;
+}
+
+/* ── BARRA DE PROGRESSO DO UPLOAD ────────────────────────── */
+.progress-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    width: 100%;
+}
+
+.progress-texto {
+    font-size: .78rem;
+    font-weight: 500;
+    letter-spacing: .01em;
+}
+
+.progress-bar-track {
+    width: 100%;
+    height: 5px;
+    background: rgba(255,255,255,.12);
+    border-radius: 99px;
+    overflow: hidden;
+}
+
+.progress-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #3b82f6, #60a5fa);
+    border-radius: 99px;
+    transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Garante que o status-badge tenha espaço quando mostra a barra */
+.status-badge.processing {
+    padding: .6rem .9rem;
+    min-width: 220px;
+}
+
+/* ── TYPING INDICATOR (3 pontinhos no chat) ──────────────── */
+.typing-indicator {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 2px;
+}
+
+.typing-indicator span {
+    display: inline-block;
+    width: 7px;
+    height: 7px;
+    background: #64748b;
+    border-radius: 50%;
+    animation: typingBounce 1.2s infinite ease-in-out;
+}
+
+.typing-indicator span:nth-child(1) { animation-delay: 0s;    }
+.typing-indicator span:nth-child(2) { animation-delay: 0.2s;  }
+.typing-indicator span:nth-child(3) { animation-delay: 0.4s;  }
+
+@keyframes typingBounce {
+    0%, 60%, 100% { transform: translateY(0);    opacity: .5; }
+    30%            { transform: translateY(-6px); opacity: 1;  }
+}
