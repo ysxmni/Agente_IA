@@ -828,19 +828,22 @@ function configurarFormularios() {
                  || e.target.querySelector(".btn-submit");
         if (btn) btn.disabled = true;
 
+       const papel = document.getElementById("user-role").value;
+
         const payload = {
             username: document.getElementById("user-email").value.trim(),
             password: document.getElementById("user-password").value,
             role_ids: [...selectedSectorIds],
             role: papel
         };
-        const papel = document.getElementById("user-role").value;
+
         if (papel === "admin") {
             const adminRole = allRoles.find(r => r.name.toLowerCase() === "admin");
             if (adminRole && !payload.role_ids.includes(adminRole.id)) {
                 payload.role_ids.push(adminRole.id);
             }
         }
+
         try {
             const res = await fetch(`${API}/admin/users`, {
                 method: "POST",
