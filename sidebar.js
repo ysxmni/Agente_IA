@@ -1,35 +1,25 @@
 // ════════════════════════════════════════════════════════════
-//  SIDEBAR.JS — Opersan (sem DOMContentLoaded próprio)
+//  SIDEBAR.JS — Opersan
+//  Correções:
+//  · Recebe isAdmin pré-calculado (sem re-derivar)
+//  · username já chega formatado de script.js (usuario.nome)
+//  · _criarIcones() via requestAnimationFrame elimina flash
+//    de ícones sem SVG no primeiro render
 // ════════════════════════════════════════════════════════════
 
 function renderizarSidebar(userData) {
     const container = document.getElementById('sidebar-container');
     if (!container) return;
 
-    let isAdmin = false;
-    if (userData.role?.toLowerCase() === 'admin') isAdmin = true;
-    if (userData.roles?.some(r => r.name?.toLowerCase() === 'admin')) isAdmin = true;
+    // Aceita isAdmin pré-calculado; faz fallback se necessário
+    const isAdmin = userData.isAdmin
+        ?? (userData.role?.toLowerCase() === 'admin'
+            || userData.roles?.some(r => r.name?.toLowerCase() === 'admin')
+            || false);
 
-    // Nome já formatado vindo de script.js via usuario.nome
-    const userName = userData.username || localStorage.getItem('userName') || 'Usuário';
-    const userRole = userData.role || localStorage.getItem('userRole') || 'Usuário';
-
-    let menuItems = `
-        <button id="tabNovaAnalise" class="nav-item active" onclick="trocarAba('nova')">
-            <i data-lucide="layout-dashboard"></i> Painel de Análise
-        </button>
-        <button id="tabHistorico" class="nav-item" onclick="trocarAba('historico')">
-            <i data-lucide="library"></i> Biblioteca
-        </button>
-    `;
-
-    if (isAdmin) {
-        menuItems += `
-            <button id="tabAdmin" class="nav-item" onclick="window.location.href='admin.html'">
-                <i data-lucide="user-star"></i> Admin
-            </button>
-        `;
-    }
+    // username já chega formatado de script.js (usuario.nome)
+    const userName = userData.username || 'Usuário';
+    const userRole = userData.role     || 'Usuário';
 
     container.innerHTML = `
         <div class="logo">
@@ -37,7 +27,16 @@ function renderizarSidebar(userData) {
             <h1>Opersan</h1>
         </div>
         <nav class="nav-menu">
-            ${menuItems}
+            <button id="tabNovaAnalise" class="nav-item active" onclick="trocarAba('nova')">
+                <i data-lucide="layout-dashboard"></i> Painel de Análise
+            </button>
+            <button id="tabHistorico" class="nav-item" onclick="trocarAba('historico')">
+                <i data-lucide="library"></i> Biblioteca
+            </button>
+            ${isAdmin ? `
+            <button id="tabAdmin" class="nav-item" onclick="window.location.href='admin.html'">
+                <i data-lucide="user-star"></i> Admin
+            </button>` : ''}
         </nav>
         <div class="sidebar-footer">
             <div class="user-profile">
@@ -53,6 +52,15 @@ function renderizarSidebar(userData) {
         </div>
     `;
 
-    // Ícones recriados DEPOIS do innerHTML ser definido
-    if (typeof lucide !== 'undefined') lucide.createIcons();
+    // rAF garante que o browser já inseriu o HTML no layout antes de processar
+    // os ícones, eliminando o flash de [data-lucide] sem SVG
+    _criarIcones();
+}
+
+// ─── helper centralizado ──────────────────────────────────────────────────────
+// Definido aqui e também em script.js como fallback.
+// Todos os módulos chamam _criarIcones() em vez de lucide.createIcons() direto.
+function _criarIcones() {
+    if (typeof lucide === 'undefined') return;
+    requestAnimationFrame(() => lucide.createIcons());
 }

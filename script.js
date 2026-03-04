@@ -1,5 +1,11 @@
 // ════════════════════════════════════════════════════════════════════════════
-//  OPERSAN — script.js  (visibilidade por usuário e por setor com badge analista)
+//  OPERSAN — script.js
+//  Correções aplicadas:
+//  · Sidebar renderizado UMA vez com dados já prontos (sem double-render)
+//  · configurarPerfil() removida do fluxo principal (sidebar é fonte de verdade)
+//  · Todos os lucide.createIcons() substituídos por _criarIcones() (rAF)
+//  · _criarIcones() definida aqui também como fallback caso sidebar.js não
+//    tenha carregado ainda (ordem de <script> no HTML)
 // ════════════════════════════════════════════════════════════════════════════
 
 const API = "https://agente-ia-62sa.onrender.com";
@@ -53,6 +59,17 @@ function limparEstado() {
     localStorage.removeItem("idAtivo");
 }
 
+// ─── HELPER DE ÍCONES ─────────────────────────────────────────────────────────
+// Centraliza todas as chamadas a lucide.createIcons() via requestAnimationFrame.
+// Isso evita o flash de [data-lucide] sem SVG: o browser já finalizou o layout
+// antes de o lucide varrer o DOM, então os ícones aparecem prontos de uma vez.
+// Se sidebar.js carregar depois deste arquivo, a função é redefinida lá — sem problema,
+// ambas fazem a mesma coisa.
+function _criarIcones() {
+    if (typeof lucide === "undefined") return;
+    requestAnimationFrame(() => lucide.createIcons());
+}
+
 // ─── BOOT ─────────────────────────────────────────────────────────────────────
 
 document.addEventListener("DOMContentLoaded", async () => {
@@ -77,20 +94,25 @@ document.addEventListener("DOMContentLoaded", async () => {
     // Carrega visibilidade antes de qualquer render
     await carregarVisibilidade();
 
-    // Sidebar renderizado com dados já prontos de autenticarUsuario()
+    // Sidebar renderizado UMA única vez com todos os dados já prontos.
+    // usuario.nome já está formatado por autenticarUsuario().
+    // usuario.isAdmin passado explicitamente para evitar recalcular dentro do sidebar.
     if (typeof renderizarSidebar === "function") {
         renderizarSidebar({
             username: usuario.nome,
             role:     usuario.role,
-            roles:    usuario.roles
+            roles:    usuario.roles,
+            isAdmin:  usuario.isAdmin
         });
     }
 
-    // Configurações que dependem de usuario.* já preenchido
+    // Setores dependem de usuario.* já preenchido
     configurarSetores();
 
-    // configurarPerfil() atualiza .user-name e .avatar que o sidebar criou
-    configurarPerfil();
+    // Não chama configurarPerfil() aqui — sidebar já é a fonte de verdade para
+    // nome/avatar/role. Se houver elementos externos ao sidebar, _sincronizarPerfil
+    // cuida deles sem reescrever o que o sidebar já renderizou.
+    _sincronizarPerfil();
 
     renderizarSetoresChat();
     configurarEventos();
@@ -105,8 +127,8 @@ document.addEventListener("DOMContentLoaded", async () => {
         habilitarChat(false);
     }
 
-    // Lucide recriado uma única vez no final, após todo o HTML estar no DOM
-    if (typeof lucide !== "undefined") lucide.createIcons();
+    // Uma única chamada de ícones no final do boot, via rAF
+    _criarIcones();
 });
 
 // ─── AUTENTICAÇÃO ─────────────────────────────────────────────────────────────
@@ -214,7 +236,7 @@ function renderizarSetoresChat() {
     if (setores.length === 1) {
         setorChatAtivo = setores[0].id;
         container.innerHTML = `<div class="chat-setor-badge-unico"><i data-lucide="${setores[0].icon}"></i> ${setores[0].nome}</div>`;
-        if (typeof lucide !== "undefined") lucide.createIcons();
+        _criarIcones();
         return;
     }
 
@@ -224,7 +246,7 @@ function renderizarSetoresChat() {
             <i data-lucide="${s.icon}"></i> ${s.nome}
         </button>`
     ).join("");
-    if (typeof lucide !== "undefined") lucide.createIcons();
+    _criarIcones();
 }
 
 function selecionarSetorChat(id) {
@@ -251,7 +273,7 @@ function renderizarFiltroSetores() {
             onclick="aplicarFiltroSetor('${s.id}')"><i data-lucide="${s.icon}"></i> ${s.nome}</button>`
     ).join("");
     container.innerHTML = html;
-    if (typeof lucide !== "undefined") lucide.createIcons();
+    _criarIcones();
 }
 
 function aplicarFiltroSetor(id) {
@@ -261,19 +283,21 @@ function aplicarFiltroSetor(id) {
 }
 
 // ─── PERFIL ───────────────────────────────────────────────────────────────────
+// Atualiza apenas elementos FORA do sidebar que usem data-perfil-*.
+// Não reescreve .user-name / .avatar dentro do sidebar — ele já está correto.
 
+function _sincronizarPerfil() {
+    const nome = usuario.nome || localStorage.getItem("userName") || "Usuário";
+    document.querySelectorAll("[data-perfil-nome]").forEach(el => el.textContent = nome);
+    document.querySelectorAll("[data-perfil-inicial]").forEach(el => el.textContent = nome.charAt(0).toUpperCase());
+    document.querySelectorAll("[data-perfil-role]").forEach(el =>
+        el.textContent = usuario.isAdmin ? "Administrador" : (usuario.role || "Usuário")
+    );
+}
+
+// Mantida como stub para compatibilidade com chamadas externas
 function configurarPerfil() {
-    let nome = localStorage.getItem("userName") || usuario.nome || "Usuário";
-    if (nome.includes("@")) {
-        nome = nome.split("@")[0].split(/[._-]/)
-            .map(p => p.charAt(0).toUpperCase() + p.slice(1).toLowerCase()).join(" ");
-    }
-    const elNome   = document.querySelector(".user-name");
-    const elAvatar = document.querySelector(".avatar");
-    const elRole   = document.querySelector(".user-role");
-    if (elNome)   elNome.textContent   = nome;
-    if (elAvatar) elAvatar.textContent = nome.charAt(0).toUpperCase();
-    if (elRole)   elRole.textContent   = usuario.isAdmin ? "Administrador" : (usuario.role || "Usuário");
+    _sincronizarPerfil();
 }
 
 // ─── EVENTOS ─────────────────────────────────────────────────────────────────
@@ -616,7 +640,7 @@ function renderizarSeletorPerspectiva() {
             ${indicadorHtml}
         </div>`;
 
-    if (typeof lucide !== "undefined") lucide.createIcons();
+    _criarIcones();
 }
 
 async function selecionarPerspectiva(analystId) {
@@ -624,7 +648,7 @@ async function selecionarPerspectiva(analystId) {
     if (analystId !== null) perspectiva.escopo = "meus";
     renderizarSeletorPerspectiva();
     await _buscarEExibirContratos();
-    if (typeof lucide !== "undefined") lucide.createIcons();
+    _criarIcones();
 }
 
 async function definirEscopo(escopo) {
@@ -632,7 +656,7 @@ async function definirEscopo(escopo) {
     perspectiva.escopo = escopo;
     renderizarSeletorPerspectiva();
     await _buscarEExibirContratos();
-    if (typeof lucide !== "undefined") lucide.createIcons();
+    _criarIcones();
 }
 
 async function voltarMinhasPerspectiva() {
@@ -640,7 +664,7 @@ async function voltarMinhasPerspectiva() {
     perspectiva.escopo    = "meus";
     renderizarSeletorPerspectiva();
     await _buscarEExibirContratos();
-    if (typeof lucide !== "undefined") lucide.createIcons();
+    _criarIcones();
 }
 
 // ─── RENDERIZAR CONTRATOS ─────────────────────────────────────────────────────
@@ -703,7 +727,7 @@ function renderizarContratos(lista) {
         el.appendChild(card);
     });
 
-    if (typeof lucide !== "undefined") lucide.createIcons();
+    _criarIcones();
     atualizarContadorResultados(filtrados.length, lista.length);
 }
 
@@ -838,7 +862,7 @@ function atualizarStatus(texto, tipo) {
     el.classList.remove("hidden");
 }
 
-// ─── MODAL DE AVISO — substitui alert() nativo ───────────────────────────────
+// ─── MODAL DE AVISO ───────────────────────────────────────────────────────────
 
 function mostrarAviso(mensagem, tipo = "info") {
     let overlay = document.getElementById("avisoModal");
@@ -879,7 +903,7 @@ function mostrarAviso(mensagem, tipo = "info") {
     document.getElementById("avisoTexto").textContent  = mensagem;
 
     abrirModal("avisoModal");
-    if (typeof lucide !== "undefined") lucide.createIcons();
+    _criarIcones();
 }
 
 // ─── MODAIS ───────────────────────────────────────────────────────────────────
@@ -909,7 +933,7 @@ function executarResete() {
     if (inp) inp.value = "";
     fecharModal("novaAnaliseModal");
     trocarAba("nova");
-    if (typeof lucide !== "undefined") lucide.createIcons();
+    _criarIcones();
 }
 
 function abrirModalResumo() {
@@ -925,12 +949,12 @@ function abrirModalResumo() {
             <button type="button" onclick="fecharModal('resumoModal')" class="btn-modal-footer btn-cancelar"><i data-lucide="x"></i> Fechar</button>
             <button type="button" onclick="abrirModalImpressao()" class="btn-modal-footer btn-imprimir"><i data-lucide="printer"></i> Imprimir</button>
             <button type="button" id="btnCopiarResumo" onclick="copiarResumo()" class="btn-modal-footer btn-copiar"><i data-lucide="copy"></i> Copiar Texto</button>`;
-        if (typeof lucide !== "undefined") lucide.createIcons();
+        _criarIcones();
     }
     abrirModal("resumoModal");
 }
 
-// ─── IMPRESSÃO VIA MODAL INTERNO ─────────────────────────────────────────────
+// ─── IMPRESSÃO ────────────────────────────────────────────────────────────────
 
 function abrirModalImpressao() {
     fecharModal("resumoModal");
@@ -971,7 +995,7 @@ function abrirModalImpressao() {
     frame.srcdoc = _gerarHtmlImpressao();
 
     abrirModal("printModal");
-    if (typeof lucide !== "undefined") lucide.createIcons();
+    _criarIcones();
 }
 
 function fecharModalImpressao() {
@@ -1053,10 +1077,11 @@ function copiarResumo() {
         if (btn) {
             btn.innerHTML = '<i data-lucide="check"></i> Copiado!';
             btn.classList.add("btn-copiar--ok");
+            _criarIcones();
             setTimeout(() => {
                 btn.innerHTML = '<i data-lucide="copy"></i> Copiar Texto';
                 btn.classList.remove("btn-copiar--ok");
-                if (typeof lucide !== "undefined") lucide.createIcons();
+                _criarIcones();
             }, 2000);
         }
     };
