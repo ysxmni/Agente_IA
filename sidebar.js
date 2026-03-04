@@ -10,6 +10,10 @@ function renderizarSidebar(userData) {
     if (userData.role?.toLowerCase() === 'admin') isAdmin = true;
     if (userData.roles?.some(r => r.name?.toLowerCase() === 'admin')) isAdmin = true;
 
+    // Nome já formatado vindo de script.js via usuario.nome
+    const userName = userData.username || localStorage.getItem('userName') || 'Usuário';
+    const userRole = userData.role || localStorage.getItem('userRole') || 'Usuário';
+
     let menuItems = `
         <button id="tabNovaAnalise" class="nav-item active" onclick="trocarAba('nova')">
             <i data-lucide="layout-dashboard"></i> Painel de Análise
@@ -26,9 +30,6 @@ function renderizarSidebar(userData) {
             </button>
         `;
     }
-
-    const userName = userData.username || localStorage.getItem('userName') || 'Usuário';
-    const userRole = userData.role || localStorage.getItem('userRole') || 'Usuário';
 
     container.innerHTML = `
         <div class="logo">
@@ -52,5 +53,6 @@ function renderizarSidebar(userData) {
         </div>
     `;
 
+    // Ícones recriados DEPOIS do innerHTML ser definido
     if (typeof lucide !== 'undefined') lucide.createIcons();
 }

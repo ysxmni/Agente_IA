@@ -74,14 +74,24 @@ document.addEventListener("DOMContentLoaded", async () => {
         return;
     }
 
+    // Carrega visibilidade antes de qualquer render
     await carregarVisibilidade();
 
+    // Sidebar renderizado com dados já prontos de autenticarUsuario()
     if (typeof renderizarSidebar === "function") {
-        renderizarSidebar({ username: usuario.nome, role: usuario.role, roles: usuario.roles });
+        renderizarSidebar({
+            username: usuario.nome,
+            role:     usuario.role,
+            roles:    usuario.roles
+        });
     }
 
+    // Configurações que dependem de usuario.* já preenchido
     configurarSetores();
+
+    // configurarPerfil() atualiza .user-name e .avatar que o sidebar criou
     configurarPerfil();
+
     renderizarSetoresChat();
     configurarEventos();
 
@@ -95,6 +105,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         habilitarChat(false);
     }
 
+    // Lucide recriado uma única vez no final, após todo o HTML estar no DOM
     if (typeof lucide !== "undefined") lucide.createIcons();
 });
 
@@ -829,11 +840,6 @@ function atualizarStatus(texto, tipo) {
 
 // ─── MODAL DE AVISO — substitui alert() nativo ───────────────────────────────
 
-/**
- * Exibe um aviso padronizado no estilo do sistema, sem usar alert() nativo.
- * @param {string} mensagem  - Texto do aviso
- * @param {string} tipo      - "info" | "warning" | "error" | "success"
- */
 function mostrarAviso(mensagem, tipo = "info") {
     let overlay = document.getElementById("avisoModal");
     if (!overlay) {
@@ -907,7 +913,6 @@ function executarResete() {
 }
 
 function abrirModalResumo() {
-    // Sem contrato: aviso padronizado no estilo do sistema — sem alert() nativo
     if (!state.resumo) {
         mostrarAviso("Nenhum documento carregado. Importe um contrato para ver a análise.", "warning");
         return;
@@ -927,14 +932,9 @@ function abrirModalResumo() {
 
 // ─── IMPRESSÃO VIA MODAL INTERNO ─────────────────────────────────────────────
 
-/**
- * Abre a pré-visualização de impressão dentro de um modal do sistema,
- * usando um <iframe srcdoc> para evitar abertura de nova aba.
- */
 function abrirModalImpressao() {
     fecharModal("resumoModal");
 
-    // Cria o modal de impressão dinamicamente se ainda não existir
     let overlay = document.getElementById("printModal");
     if (!overlay) {
         overlay = document.createElement("div");
@@ -967,7 +967,6 @@ function abrirModalImpressao() {
         document.body.appendChild(overlay);
     }
 
-    // Injeta o HTML de impressão no iframe via srcdoc (sem nova aba)
     const frame = document.getElementById("printFrame");
     frame.srcdoc = _gerarHtmlImpressao();
 
@@ -977,7 +976,6 @@ function abrirModalImpressao() {
 
 function fecharModalImpressao() {
     fecharModal("printModal");
-    // Reabre o resumo ao fechar o modal de impressão
     abrirModal("resumoModal");
 }
 
