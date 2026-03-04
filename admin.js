@@ -831,7 +831,8 @@ function configurarFormularios() {
         const payload = {
             username: document.getElementById("user-email").value.trim(),
             password: document.getElementById("user-password").value,
-            role_ids: [...selectedSectorIds]
+            role_ids: [...selectedSectorIds],
+            role: papel
         };
         const papel = document.getElementById("user-role").value;
         if (papel === "admin") {
