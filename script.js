@@ -617,8 +617,19 @@ async function _buscarEExibirContratos() {
     if (!lista) return;
 
     const params = new URLSearchParams();
-    if (perspectiva.analystId !== null) params.append("analyst_id", perspectiva.analystId);
-    if (setorFiltroAtivo !== "todos")   params.append("sector_id",  setorFiltroAtivo);
+
+    if (perspectiva.analystId !== null) {
+        // Visualizando outro analista — passa o ID dele
+        params.append("analyst_id", perspectiva.analystId);
+    } else {
+        // Perspectiva própria — filtra pelo usuário logado, a menos que escopo seja "todos"
+        if (perspectiva.escopo === "meus") {
+            params.append("analyst_id", usuario.id);
+        }
+        // escopo === "todos" → não passa analyst_id, backend retorna tudo do setor
+    }
+
+    if (setorFiltroAtivo !== "todos") params.append("sector_id", setorFiltroAtivo);
 
     try {
         const res = await fetch(`${API}/contratos/listar?${params.toString()}`, {
@@ -632,7 +643,6 @@ async function _buscarEExibirContratos() {
         lista.innerHTML = "<p class='preview-empty' style='color:#ef4444'>Erro ao conectar com a base de dados.</p>";
     }
 }
-
 // ─── SELETOR DE PERSPECTIVA ───────────────────────────────────────────────────
 
 function renderizarSeletorPerspectiva() {
@@ -650,26 +660,28 @@ function renderizarSeletorPerspectiva() {
         const analista = usuariosVisiveis.find(u => u.id === perspectiva.analystId);
         if (analista) {
             indicadorHtml = `
-            <div class="perspectiva-indicador">
-                ${ic('eye')} Visualizando análises de <strong>${analista.nome}</strong>
-                <button class="btn-voltar-minha" onclick="voltarMinhasPerspectiva()">← Voltar às minhas</button>
+            <div class="perspectiva-info-row">
+                <span class="perspectiva-info-text">
+                    ${ic('eye')} Visualizando análises de <strong>${analista.nome}</strong>
+                </span>
+                <button class="btn-voltar-minhas" onclick="voltarMinhasPerspectiva()">← Voltar às minhas</button>
             </div>`;
         }
     }
 
-    let escopoHtml = "";
-    if (usuario.isAdmin && perspectiva.analystId === null) {
-        escopoHtml = `
-        <div class="escopo-wrap">
-            <span class="escopo-label">Escopo:</span>
-            <button class="escopo-btn ${perspectiva.escopo === "meus" ? "ativo" : ""}" onclick="definirEscopo('meus')">
-                ${ic('user')} Meus contratos
-            </button>
-            <button class="escopo-btn ${perspectiva.escopo === "todos" ? "ativo" : ""}" onclick="definirEscopo('todos')">
-                ${ic('users')} Todos do setor
-            </button>
-        </div>`;
-    }
+        let escopoHtml = "";
+        if (usuario.isAdmin && perspectiva.analystId === null) {
+            escopoHtml = `
+            <div class="perspectiva-escopo">
+                <span class="perspectiva-escopo-label">Escopo:</span>
+                <button class="escopo-btn ${perspectiva.escopo === "meus" ? "ativo" : ""}" onclick="definirEscopo('meus')">
+                    ${ic('user')} Meus contratos
+                </button>
+                <button class="escopo-btn ${perspectiva.escopo === "todos" ? "ativo" : ""}" onclick="definirEscopo('todos')">
+                    ${ic('users')} Todos do setor
+                </button>
+            </div>`;
+        }
 
     let setoresBadgesHtml = "";
     if (temSetores && !usuario.isAdmin) {
@@ -711,7 +723,8 @@ function renderizarSeletorPerspectiva() {
 
 async function selecionarPerspectiva(analystId) {
     perspectiva.analystId = analystId;
-    if (analystId !== null) perspectiva.escopo = "meus";
+    // Sempre reseta o escopo ao trocar de perspectiva
+    perspectiva.escopo = "meus";
     renderizarSeletorPerspectiva();
     const lista = document.getElementById("listaContratos");
     if (lista) _renderSkeletonBiblioteca(lista);
