@@ -1,16 +1,20 @@
+/* ══════════════════════════════════════════════════════════
+   LOGIN.CSS — Opersan
+   ══════════════════════════════════════════════════════════ */
+
 :root {
-    --bg-color: #0a1120;
-    --card-bg: #111a2e;
-    --input-bg: #1a253d;
-    --text-primary: #ffffff;
-    --text-secondary: #94a3b8;
-    --accent-blue: #3b82f6;
-    --btn-gradient: linear-gradient(90deg, #2563eb, #3b82f6);
-    --font-serif: 'Lora', serif;
-    --font-sans: 'Inter', sans-serif;
+    --bg-color:      #0a1120;
+    --card-bg:       #111a2e;
+    --input-bg:      #1a253d;
+    --text-primary:  #ffffff;
+    --text-secondary:#94a3b8;
+    --accent-blue:   #3b82f6;
+    --btn-gradient:  linear-gradient(90deg, #2563eb, #3b82f6);
+    --font-serif:    'Lora', serif;
+    --font-sans:     'Inter', sans-serif;
 }
 
-* {
+*, *::before, *::after {
     margin: 0;
     padding: 0;
     box-sizing: border-box;
@@ -34,7 +38,7 @@ body::before {
     left: -10%;
     width: 40%;
     height: 40%;
-    background: radial-gradient(circle, rgba(37, 99, 235, 0.15) 0%, transparent 70%);
+    background: radial-gradient(circle, rgba(37,99,235,0.15) 0%, transparent 70%);
     z-index: -1;
 }
 
@@ -52,6 +56,7 @@ body::before {
 }
 
 /* ── INFO SECTION ─────────────────────────────────────────── */
+
 .info-section {
     display: flex;
     flex-direction: column;
@@ -112,8 +117,8 @@ body::before {
 }
 
 .stat-card {
-    background-color: rgba(26, 37, 61, 0.5);
-    border: 1px solid rgba(255, 255, 255, 0.05);
+    background-color: rgba(26,37,61,0.5);
+    border: 1px solid rgba(255,255,255,0.05);
     padding: 1.5rem;
     border-radius: 12px;
     flex: 1;
@@ -133,7 +138,8 @@ body::before {
     color: var(--text-secondary);
 }
 
-/* ── LOGIN SECTION ────────────────────────────────────────── */
+/* ── LOGIN CARD ───────────────────────────────────────────── */
+
 .login-section {
     display: flex;
     justify-content: flex-end;
@@ -141,12 +147,12 @@ body::before {
 
 .login-card {
     background-color: var(--card-bg);
-    border: 1px solid rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255,255,255,0.05);
     padding: 3rem;
     border-radius: 16px;
     width: 100%;
     max-width: 420px;
-    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+    box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5);
     animation: fadeIn 0.4s ease-out;
 }
 
@@ -162,6 +168,8 @@ body::before {
     margin-bottom: 2.5rem;
 }
 
+/* ── INPUTS ───────────────────────────────────────────────── */
+
 .input-group {
     margin-bottom: 1.5rem;
 }
@@ -171,17 +179,17 @@ body::before {
     font-size: 0.9rem;
     font-weight: 500;
     margin-bottom: 0.5rem;
+    color: var(--text-primary);
 }
 
-/* ── INPUT COM ÍCONE DENTRO — abordagem flex no wrapper ───── */
 .input-wrapper {
     display: flex;
     align-items: center;
-    gap: 0.75rem;
+    gap: 10px;
     background-color: var(--input-bg);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255,255,255,0.1);
     border-radius: 8px;
-    padding: 0 1rem;
+    padding: 0 14px;
     transition: border-color 0.2s;
 }
 
@@ -189,33 +197,33 @@ body::before {
     border-color: var(--accent-blue);
 }
 
-.input-wrapper > svg {
+.input-wrapper svg {
+    flex-shrink: 0;
     width: 18px;
     height: 18px;
-    min-width: 18px;
     color: var(--text-secondary);
-    pointer-events: none;
     display: block;
-    flex-shrink: 0;
+    pointer-events: none;
 }
 
-.input-wrapper > input {
+.input-wrapper input {
     flex: 1;
+    min-width: 0;
     background: transparent;
     border: none;
     outline: none;
-    padding: 0.85rem 0;
+    padding: 12px 0;
     color: var(--text-primary);
     font-family: var(--font-sans);
     font-size: 1rem;
-    min-width: 0;
 }
 
-.input-wrapper > input::placeholder {
+.input-wrapper input::placeholder {
     color: var(--text-secondary);
 }
 
-/* ── BOTÃO SUBMIT ─────────────────────────────────────────── */
+/* ── BOTÃO ────────────────────────────────────────────────── */
+
 .btn-submit {
     width: 100%;
     background: var(--btn-gradient);
@@ -225,6 +233,7 @@ body::before {
     padding: 1rem;
     font-size: 1rem;
     font-weight: 600;
+    font-family: var(--font-sans);
     cursor: pointer;
     display: flex;
     align-items: center;
@@ -234,9 +243,7 @@ body::before {
     transition: opacity 0.2s;
 }
 
-.btn-submit:hover {
-    opacity: 0.9;
-}
+.btn-submit:hover { opacity: 0.9; }
 
 .btn-submit svg {
     width: 18px;
@@ -244,47 +251,44 @@ body::before {
     flex-shrink: 0;
 }
 
-/* ── ESTADOS DO BOTÃO ─────────────────────────────────────── */
+.btn-submit.btn-success {
+    background: #10b981 !important;
+    cursor: default;
+}
+
+/* ── SPINNER ──────────────────────────────────────────────── */
+
 .btn-spinner {
     display: inline-block;
     width: 14px;
     height: 14px;
-    border: 2px solid rgba(255,255,255,.3);
+    border: 2px solid rgba(255,255,255,0.3);
     border-top-color: #fff;
     border-radius: 50%;
     animation: spin 0.7s linear infinite;
     flex-shrink: 0;
 }
 
-@keyframes spin {
-    to { transform: rotate(360deg); }
-}
+@keyframes spin { to { transform: rotate(360deg); } }
 
-.btn-submit.btn-success {
-    background: #10b981 !important;
-    cursor: default;
-}
+/* ── ERRO ─────────────────────────────────────────────────── */
 
-/* ── MENSAGEM DE ERRO ─────────────────────────────────────── */
 .login-error {
-    background: rgba(239, 68, 68, .1);
-    border: 1px solid rgba(239, 68, 68, .3);
+    background: rgba(239,68,68,0.1);
+    border: 1px solid rgba(239,68,68,0.3);
     color: #fca5a5;
     border-radius: 8px;
-    padding: .65rem .9rem;
-    font-size: .82rem;
-    margin-bottom: .75rem;
+    padding: 0.65rem 0.9rem;
+    font-size: 0.82rem;
+    margin-bottom: 0.75rem;
     text-align: center;
 }
 
-.login-error.hidden {
-    display: none;
-}
+/* ── UTILITÁRIOS ──────────────────────────────────────────── */
+
+.hidden { display: none !important; }
 
 /* ── ANIMAÇÕES ────────────────────────────────────────────── */
-.hidden {
-    display: none !important;
-}
 
 @keyframes fadeIn {
     from { opacity: 0; transform: translateY(10px); }
@@ -292,29 +296,21 @@ body::before {
 }
 
 @keyframes shake {
-    0%, 100% { transform: translateX(0);    }
-    15%       { transform: translateX(-8px); }
-    30%       { transform: translateX(7px);  }
-    45%       { transform: translateX(-6px); }
-    60%       { transform: translateX(5px);  }
-    75%       { transform: translateX(-3px); }
-    90%       { transform: translateX(2px);  }
+    0%,100% { transform: translateX(0);    }
+    15%     { transform: translateX(-8px); }
+    30%     { transform: translateX(7px);  }
+    45%     { transform: translateX(-6px); }
+    60%     { transform: translateX(5px);  }
+    75%     { transform: translateX(-3px); }
+    90%     { transform: translateX(2px);  }
 }
 
-.login-card.shake {
-    animation: shake 0.45s ease;
-}
+.login-card.shake { animation: shake 0.45s ease; }
 
 /* ── RESPONSIVO ───────────────────────────────────────────── */
+
 @media (max-width: 900px) {
-    .content {
-        grid-template-columns: 1fr;
-        gap: 3rem;
-    }
-    .login-section {
-        justify-content: center;
-    }
-    .hero-text h2 {
-        font-size: 2.5rem;
-    }
+    .content { grid-template-columns: 1fr; gap: 3rem; }
+    .login-section { justify-content: center; }
+    .hero-text h2 { font-size: 2.5rem; }
 }
