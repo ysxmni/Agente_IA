@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Lora:wght@700&display=swap" rel="stylesheet">
-    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- ZERO dependência do Lucide — todos os ícones são SVG inline -->
 </head>
 <body>
     <div class="app-container">
@@ -16,9 +16,13 @@
         <!-- Overlay escuro atrás do sidebar em mobile -->
         <div class="sidebar-overlay" id="sidebarOverlay" onclick="fecharSidebar()"></div>
 
-        <!-- Botão hamburguer (só aparece em mobile) -->
-        <button class="btn-menu-toggle" id="btnMenuToggle" onclick="abrirSidebar()" aria-label="Abrir menu">
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+        <!-- Botão hamburguer — só aparece em mobile via CSS -->
+        <button type="button" class="btn-menu-toggle" id="btnMenuToggle" onclick="abrirSidebar()" aria-label="Abrir menu">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="3" y1="6"  x2="21" y2="6"/>
+                <line x1="3" y1="12" x2="21" y2="12"/>
+                <line x1="3" y1="18" x2="21" y2="18"/>
+            </svg>
         </button>
 
         <!-- Sidebar gerada pelo sidebar.js -->
@@ -27,7 +31,7 @@
         <!-- Conteúdo principal -->
         <main class="main-content">
 
-            <!-- ABA: Nova Análise -->
+            <!-- ══ ABA: Nova Análise ══ -->
             <div id="abaNovaAnalise" class="tab-content">
                 <header class="content-header">
                     <div class="content-header-text">
@@ -35,7 +39,8 @@
                         <p>Importe seu contrato para iniciar a auditoria inteligente.</p>
                     </div>
                     <button type="button" onclick="novaAnalise()" class="btn-reset">
-                        <i data-lucide="refresh-cw"></i> Resetar
+                        <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+                        Resetar
                     </button>
                 </header>
 
@@ -44,14 +49,12 @@
                     <div class="left-column">
 
                         <div class="card upload-card">
-                            <div class="card-header">
-                                <h3>Documento Fonte</h3>
-                            </div>
+                            <div class="card-header"><h3>Documento Fonte</h3></div>
                             <div class="card-body">
                                 <div class="drop-zone" onclick="document.getElementById('inputArquivo').click()">
                                     <input type="file" id="inputArquivo" class="hidden" accept=".pdf">
                                     <div class="drop-icon">
-                                        <i data-lucide="upload-cloud"></i>
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/></svg>
                                     </div>
                                     <div class="drop-labels">
                                         <span class="drop-text">Subir Contrato PDF</span>
@@ -63,9 +66,7 @@
                         </div>
 
                         <div class="card summary-card">
-                            <div class="card-header">
-                                <h3>Resumo Estruturado</h3>
-                            </div>
+                            <div class="card-header"><h3>Resumo Estruturado</h3></div>
                             <div class="card-body">
                                 <div class="summary-preview-container">
                                     <div id="resumoTexto" class="summary-text-preview italic">
@@ -89,13 +90,13 @@
                             <div class="chat-header">
                                 <div class="chat-setor-selector">
                                     <div class="setor-label">
-                                        <i data-lucide="message-square"></i>
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
                                         <span>CONVERSAR COM:</span>
                                     </div>
                                     <div id="chatSetorButtons" class="chat-setor-buttons"></div>
                                 </div>
                                 <button type="button" onclick="limparChatVisual()" class="btn-limpar-chat" title="Limpar conversa">
-                                    <i data-lucide="eraser"></i>
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 20H7L3 16l13-13 6 6-2 2"/><path d="M6 17l-3-3"/></svg>
                                     <span>Limpar Chat</span>
                                 </button>
                             </div>
@@ -119,7 +120,7 @@
                                         data-lpignore="true"
                                         data-1p-ignore="true">
                                     <button type="button" id="btnEnviar" class="btn-send" disabled>
-                                        <i data-lucide="send"></i>
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
                                     </button>
                                 </div>
                             </div>
@@ -129,7 +130,7 @@
                 </div><!-- /.analysis-grid -->
             </div><!-- /#abaNovaAnalise -->
 
-            <!-- ABA: Biblioteca -->
+            <!-- ══ ABA: Biblioteca ══ -->
             <div id="abaHistorico" class="tab-content hidden">
                 <header class="content-header">
                     <div class="content-header-text">
@@ -140,7 +141,7 @@
 
                 <div class="filter-section">
                     <div class="filter-header">
-                        <i data-lucide="layers"></i>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
                         <span class="filter-label">FILTRAR POR SETOR</span>
                     </div>
                     <div id="filtroSetores" class="filter-buttons"></div>
@@ -148,14 +149,10 @@
 
                 <div class="search-bar-container">
                     <div class="search-input-wrapper">
-                        <i data-lucide="search"></i>
-                        <input
-                            type="text"
-                            id="searchInput"
-                            class="search-input"
-                            placeholder="Pesquisar contratos por nome, data ou conteúdo...">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                        <input type="text" id="searchInput" class="search-input" placeholder="Pesquisar contratos por nome, data ou conteúdo...">
                         <button type="button" id="clearSearch" class="clear-search-btn hidden">
-                            <i data-lucide="x"></i>
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                         </button>
                     </div>
                     <div id="searchResultCount" class="search-result-count hidden"></div>
@@ -168,10 +165,12 @@
         </main>
     </div><!-- /.app-container -->
 
-    <!-- MODAL: Excluir contrato -->
+    <!-- ══ MODAL: Excluir contrato ══ -->
     <div id="deleteModal" class="modal-overlay hidden" onclick="if(event.target===this)fecharModal('deleteModal')">
         <div class="modal-card">
-            <div class="modal-icon warning"><i data-lucide="alert-triangle"></i></div>
+            <div class="modal-icon warning">
+                <svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            </div>
             <h3>Excluir Registro?</h3>
             <p>Esta ação removerá todos os dados de análise.</p>
             <div class="modal-actions">
@@ -181,10 +180,12 @@
         </div>
     </div>
 
-    <!-- MODAL: Nova Análise / Resetar -->
+    <!-- ══ MODAL: Nova Análise ══ -->
     <div id="novaAnaliseModal" class="modal-overlay hidden" onclick="if(event.target===this)fecharModal('novaAnaliseModal')">
         <div class="modal-card">
-            <div class="modal-icon info"><i data-lucide="refresh-cw"></i></div>
+            <div class="modal-icon info">
+                <svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+            </div>
             <h3>Nova Análise?</h3>
             <p>Isso limpará os dados atuais.</p>
             <div class="modal-actions">
@@ -194,29 +195,29 @@
         </div>
     </div>
 
-    <!-- MODAL: Resumo Completo -->
+    <!-- ══ MODAL: Resumo Completo ══ -->
     <div id="resumoModal" class="modal-overlay hidden" onclick="if(event.target===this)fecharModal('resumoModal')">
         <div class="modal-card large">
             <div class="modal-header">
                 <div class="header-title">
-                    <i data-lucide="book-open"></i>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
                     <h3>Análise Completa</h3>
                 </div>
                 <button type="button" onclick="fecharModal('resumoModal')" class="btn-close">
-                    <i data-lucide="x"></i>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                 </button>
             </div>
             <div id="textoFull" class="modal-body prose-legal"></div>
-            <div class="modal-footer">
-                <!-- Inserido via script.js -->
-            </div>
+            <div class="modal-footer"><!-- injetado pelo script.js --></div>
         </div>
     </div>
 
-    <!-- MODAL: Logout -->
+    <!-- ══ MODAL: Logout ══ -->
     <div id="logoutModal" class="modal-overlay hidden" onclick="if(event.target===this)fecharModal('logoutModal')">
         <div class="modal-card">
-            <div class="modal-icon info"><i data-lucide="log-out"></i></div>
+            <div class="modal-icon info">
+                <svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+            </div>
             <h3>Sair da Conta?</h3>
             <p>Você será desconectado do sistema.</p>
             <div class="modal-actions">
@@ -226,35 +227,26 @@
         </div>
     </div>
 
+    <!-- Ordem: auth (guarda) → sidebar → script -->
     <script src="auth.js"></script>
     <script src="sidebar.js"></script>
     <script src="script.js"></script>
     <script>
-        lucide.createIcons();
-
-        // ── SIDEBAR MOBILE ──────────────────────────────────────
         function abrirSidebar() {
-            document.getElementById('sidebar-container').classList.add('open');
-            document.getElementById('sidebarOverlay').classList.add('active');
-            document.body.style.overflow = 'hidden';
+            document.getElementById("sidebar-container").classList.add("open");
+            document.getElementById("sidebarOverlay").classList.add("active");
+            document.body.style.overflow = "hidden";
         }
-
         function fecharSidebar() {
-            document.getElementById('sidebar-container').classList.remove('open');
-            document.getElementById('sidebarOverlay').classList.remove('active');
-            document.body.style.overflow = '';
+            document.getElementById("sidebar-container").classList.remove("open");
+            document.getElementById("sidebarOverlay").classList.remove("active");
+            document.body.style.overflow = "";
         }
-
-        // Fecha sidebar ao clicar em item de menu (mobile)
-        document.getElementById('sidebar-container').addEventListener('click', function(e) {
-            if (window.innerWidth <= 768 && e.target.closest('.nav-item')) {
-                fecharSidebar();
-            }
+        document.getElementById("sidebar-container").addEventListener("click", function (e) {
+            if (window.innerWidth <= 768 && e.target.closest(".nav-item")) fecharSidebar();
         });
-
-        // Fecha com ESC
-        document.addEventListener('keydown', function(e) {
-            if (e.key === 'Escape') fecharSidebar();
+        document.addEventListener("keydown", function (e) {
+            if (e.key === "Escape") fecharSidebar();
         });
     </script>
 </body>

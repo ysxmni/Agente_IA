@@ -1,31 +1,26 @@
 // ════════════════════════════════════════════════════════════
-//  AUTH.JS — Opersan (versão limpa)
+//  AUTH.JS — Opersan  (executado antes de script.js)
+//  Verifica token e redireciona para login se inválido.
+//  Não usa Lucide nem qualquer CDN externo.
 // ════════════════════════════════════════════════════════════
 
-const API_URL = "https://agente-ia-62sa.onrender.com";
+(function () {
+    // Normaliza chaves: garante que "token" e "userToken" sejam equivalentes
+    const t1 = localStorage.getItem("userToken");
+    const t2 = localStorage.getItem("token");
 
-async function verificarAutenticacaoUsuario() {
-    const userToken = localStorage.getItem('userToken');
-    if (!userToken || userToken === 'null' || userToken === 'undefined') {
-        window.location.href = 'login.html';
-        return null;
+    if (!t1 && t2)  localStorage.setItem("userToken", t2);
+    if (!t2 && t1)  localStorage.setItem("token", t1);
+
+    const token = localStorage.getItem("userToken") || localStorage.getItem("token");
+
+    // Se não há token algum, vai direto para login sem fazer fetch
+    if (!token) {
+        window.location.replace("login.html");
+        // Interrompe o restante da execução desta página
+        throw new Error("AUTH: sem token — redirecionando");
     }
-    try {
-        const response = await fetch(`${API_URL}/users/me`, {
-            headers: { 'Authorization': `Bearer ${userToken}` }
-        });
-        if (response.status === 401 || response.status === 403) {
-            localStorage.removeItem('userToken');
-            window.location.href = 'login.html';
-            return null;
-        }
-        if (!response.ok) return null;
-        const userData = await response.json();
-        if (userData.role)     localStorage.setItem('userRole', userData.role);
-        if (userData.username) localStorage.setItem('userName', userData.username);
-        return userData;
-    } catch (error) {
-        console.error('auth.js: Erro de rede:', error.message);
-        return null;
-    }
-}
+
+    // Token existe — a validação completa acontece no script.js via /users/me
+    // auth.js só garante que existe algo antes de montar o DOM
+})();

@@ -1,15 +1,44 @@
 // ════════════════════════════════════════════════════════════════════════════
-//  OPERSAN — script.js  (com progresso de upload e skeleton na biblioteca)
+//  OPERSAN — script.js  (zero Lucide — todos SVGs inline)
 // ════════════════════════════════════════════════════════════════════════════
 
 const API = "https://agente-ia-62sa.onrender.com";
 
+// ─── BIBLIOTECA DE ÍCONES SVG INLINE ─────────────────────────────────────────
+const IC = {
+    scale:          `<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 16l3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1z"/><path d="M2 16l3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1z"/><path d="M7 21h10"/><line x1="12" y1="3" x2="12" y2="21"/><path d="M3 7h2c2 0 5-1 7-2 2 1 5 2 7 2h2"/></svg>`,
+    package:        `<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="16.5" y1="9.4" x2="7.5" y2="4.21"/><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>`,
+    "folder-kanban":`<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2z"/><line x1="8" y1="12" x2="8" y2="16"/><line x1="12" y1="10" x2="12" y2="16"/><line x1="16" y1="14" x2="16" y2="16"/></svg>`,
+    list:           `<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>`,
+    eye:            `<svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>`,
+    user:           `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`,
+    users:          `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>`,
+    "alert-triangle":`<svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`,
+    "alert-circle": `<svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>`,
+    info:           `<svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>`,
+    "check-circle-2":`<svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/><path d="m9 12 2 2 4-4"/></svg>`,
+    printer:        `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>`,
+    x:              `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`,
+    copy:           `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>`,
+    check:          `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`,
+    calendar:       `<svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>`,
+    "trash-2":      `<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>`,
+    "file-text":    `<svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14,2 14,8 20,8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>`,
+    "refresh-cw":   `<svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>`,
+    "log-out":      `<svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>`,
+    "book-open":    `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>`,
+};
+
+function ic(name) {
+    return IC[name] || "";
+}
+
 // ─── ESTADO GLOBAL ───────────────────────────────────────────────────────────
 
 let setoresDisponiveis = [
-    { id: "juridico",        nome: "Jurídico",            icon: "scale",         cor: "#3b82f6" },
-    { id: "suprimentos",     nome: "Suprimentos",         icon: "package",       cor: "#10b981" },
-    { id: "gestaocontratos", nome: "Gestão de Contratos", icon: "folder-kanban", cor: "#f59e0b" }
+    { id: "juridico",        nome: "Jurídico",            icon: "scale",          cor: "#3b82f6" },
+    { id: "suprimentos",     nome: "Suprimentos",         icon: "package",        cor: "#10b981" },
+    { id: "gestaocontratos", nome: "Gestão de Contratos", icon: "folder-kanban",  cor: "#f59e0b" }
 ];
 
 let setorSelecionado      = "juridico";
@@ -19,12 +48,7 @@ let todosContratos        = [];
 let contratoParaExcluirId = null;
 let _enviandoPergunta     = false;
 
-// ─── ESTADO DE PERSPECTIVA ────────────────────────────────────────────────────
-let perspectiva = {
-    analystId: null,
-    escopo:    "meus"
-};
-
+let perspectiva = { analystId: null, escopo: "meus" };
 let usuariosVisiveis = [];
 let setoresVisiveis  = [];
 
@@ -65,7 +89,6 @@ document.addEventListener("DOMContentLoaded", async () => {
         return;
     }
 
-    // Mostra skeleton do perfil imediatamente enquanto autentica
     _renderSkeletonSidebar();
 
     try {
@@ -73,6 +96,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     } catch (err) {
         console.error("❌ Autenticação falhou:", err.message);
         localStorage.removeItem("userToken");
+        localStorage.removeItem("token");
         window.location.href = "login.html";
         return;
     }
@@ -97,18 +121,16 @@ document.addEventListener("DOMContentLoaded", async () => {
         renderTelaInicial();
         habilitarChat(false);
     }
-
-    if (typeof lucide !== "undefined") lucide.createIcons();
 });
 
-// ─── SKELETON SIDEBAR (enquanto autentica) ────────────────────────────────────
+// ─── SKELETON SIDEBAR ────────────────────────────────────────────────────────
 
 function _renderSkeletonSidebar() {
     const container = document.getElementById('sidebar-container');
     if (!container) return;
     container.innerHTML = `
         <div class="logo">
-            <div class="logo-icon"><i data-lucide="file-text"></i></div>
+            <div class="logo-icon">${ic('file-text')}</div>
             <h1>Opersan</h1>
         </div>
         <nav class="nav-menu">
@@ -125,7 +147,6 @@ function _renderSkeletonSidebar() {
             </div>
         </div>
     `;
-    if (typeof lucide !== "undefined") lucide.createIcons();
 }
 
 // ─── AUTENTICAÇÃO ─────────────────────────────────────────────────────────────
@@ -176,7 +197,7 @@ async function carregarVisibilidade() {
         } catch (e) {
             console.warn("⚠️ Admin: lista de usuários não carregada:", e.message);
         }
-        setoresVisiveis = Object.keys({ juridico: 1, suprimentos: 1, gestaocontratos: 1 });
+        setoresVisiveis = ["juridico", "suprimentos", "gestaocontratos"];
         return;
     }
 
@@ -185,7 +206,7 @@ async function carregarVisibilidade() {
             headers: { Authorization: `Bearer ${usuario.token}` }
         });
         if (res.ok) {
-            const data    = await res.json();
+            const data       = await res.json();
             usuariosVisiveis = data.can_see || [];
             setoresVisiveis  = data.sectors  || [];
         }
@@ -199,12 +220,12 @@ async function carregarVisibilidade() {
 // ─── SETORES ─────────────────────────────────────────────────────────────────
 
 const MAPA_SETORES = {
-    "admin":                  ["juridico", "suprimentos", "gestaocontratos"],
-    "jurídico":               ["juridico"],
-    "juridico":               ["juridico"],
-    "suprimentos":            ["suprimentos"],
-    "gestão de contratos":    ["gestaocontratos"],
-    "gestaocontratos":        ["gestaocontratos"],
+    "admin":               ["juridico", "suprimentos", "gestaocontratos"],
+    "jurídico":            ["juridico"],
+    "juridico":            ["juridico"],
+    "suprimentos":         ["suprimentos"],
+    "gestão de contratos": ["gestaocontratos"],
+    "gestaocontratos":     ["gestaocontratos"],
 };
 
 function configurarSetores() {
@@ -232,18 +253,16 @@ function renderizarSetoresChat() {
 
     if (setores.length === 1) {
         setorChatAtivo = setores[0].id;
-        container.innerHTML = `<div class="chat-setor-badge-unico"><i data-lucide="${setores[0].icon}"></i> ${setores[0].nome}</div>`;
-        if (typeof lucide !== "undefined") lucide.createIcons();
+        container.innerHTML = `<div class="chat-setor-badge-unico">${ic(setores[0].icon)} ${setores[0].nome}</div>`;
         return;
     }
 
     container.innerHTML = setores.map(s =>
         `<button type="button" class="chat-setor-btn ${s.id === setorChatAtivo ? "ativo" : "inativo"}"
             data-setor="${s.id}" onclick="selecionarSetorChat('${s.id}')">
-            <i data-lucide="${s.icon}"></i> ${s.nome}
+            ${ic(s.icon)} ${s.nome}
         </button>`
     ).join("");
-    if (typeof lucide !== "undefined") lucide.createIcons();
 }
 
 function selecionarSetorChat(id) {
@@ -263,14 +282,15 @@ function renderizarFiltroSetores() {
     let html = "";
     if (setores.length > 1) {
         html += `<button type="button" class="filter-btn ${setorFiltroAtivo === "todos" ? "ativo" : "inativo"}"
-            onclick="aplicarFiltroSetor('todos')"><i data-lucide="list"></i> Todos</button>`;
+            onclick="aplicarFiltroSetor('todos')">${ic('list')} Todos</button>`;
     }
     html += setores.map(s =>
         `<button type="button" class="filter-btn ${setorFiltroAtivo === s.id ? "ativo" : "inativo"}"
-            onclick="aplicarFiltroSetor('${s.id}')"><i data-lucide="${s.icon}"></i> ${s.nome}</button>`
+            data-setor="${s.id}" onclick="aplicarFiltroSetor('${s.id}')">
+            ${ic(s.icon)} ${s.nome}
+        </button>`
     ).join("");
     container.innerHTML = html;
-    if (typeof lucide !== "undefined") lucide.createIcons();
 }
 
 function aplicarFiltroSetor(id) {
@@ -300,9 +320,7 @@ function configurarPerfil() {
 function validarBotao() {
     const input = document.getElementById("perguntaUser");
     const btn   = document.getElementById("btnEnviar");
-    if (btn && input) {
-        btn.disabled = !input.value.trim() || _enviandoPergunta;
-    }
+    if (btn && input) btn.disabled = !input.value.trim() || _enviandoPergunta;
 }
 
 function configurarEventos() {
@@ -310,15 +328,13 @@ function configurarEventos() {
     const btnEnviar     = document.getElementById("btnEnviar");
 
     btnEnviar?.addEventListener("click", (e) => {
-        e.preventDefault();
-        e.stopPropagation();
+        e.preventDefault(); e.stopPropagation();
         if (!_enviandoPergunta && inputPergunta?.value.trim()) enviarPergunta();
     });
 
     inputPergunta?.addEventListener("keydown", (e) => {
         if (e.key === "Enter" && !e.shiftKey) {
-            e.preventDefault();
-            e.stopPropagation();
+            e.preventDefault(); e.stopPropagation();
             if (!_enviandoPergunta && inputPergunta.value.trim()) enviarPergunta();
         }
     });
@@ -335,18 +351,17 @@ function configurarEventos() {
 
     document.addEventListener("keydown", (e) => {
         if (e.key === "Escape") {
-            ["deleteModal", "novaAnaliseModal", "resumoModal", "logoutModal", "printModal", "avisoModal"].forEach(fecharModal);
+            ["deleteModal","novaAnaliseModal","resumoModal","logoutModal","printModal","avisoModal"].forEach(fecharModal);
         }
     });
 }
 
 // ─── UPLOAD COM PROGRESSO ─────────────────────────────────────────────────────
 
-// Etapas exibidas durante o upload (simuladas no frontend enquanto o backend processa)
 const ETAPAS_UPLOAD = [
     { texto: "📄 Lendo o PDF...",              duracao: 800  },
     { texto: "🔍 Extraindo texto...",           duracao: 1200 },
-    { texto: "🤖 IA analisando o contrato...", duracao: null }, // dura até o fetch retornar
+    { texto: "🤖 IA analisando o contrato...", duracao: null },
     { texto: "💾 Salvando análise...",          duracao: 600  },
 ];
 
@@ -358,11 +373,10 @@ async function enviarContrato() {
     const setorInfo = setoresDisponiveis.find(s => s.id === setorSelecionado);
     const nomeSetor = setorInfo?.nome || "Jurídico";
 
-    // Inicia barra de progresso
     _iniciarProgresso();
-    await _avancarEtapa(0); // "Lendo o PDF..."
-    await _avancarEtapa(1); // "Extraindo texto..."
-    _avancarEtapaSemEspera(2); // "IA analisando..." — fica aqui até o fetch terminar
+    await _avancarEtapa(0);
+    await _avancarEtapa(1);
+    _avancarEtapaSemEspera(2);
 
     const fd = new FormData();
     fd.append("file",  arquivo);
@@ -383,7 +397,7 @@ async function enviarContrato() {
 
         const data = await res.json();
 
-        await _avancarEtapa(3); // "Salvando análise..."
+        await _avancarEtapa(3);
         _finalizarProgresso("✅ ANÁLISE CONCLUÍDA!");
 
         state.contratoCarregado = true;
@@ -415,8 +429,6 @@ async function enviarContrato() {
     }
 }
 
-// ── helpers de progresso ──────────────────────────────────────────────────────
-
 let _etapaAtual = 0;
 
 function _iniciarProgresso() {
@@ -436,10 +448,10 @@ function _iniciarProgresso() {
 
 function _avancarEtapa(indice) {
     return new Promise(resolve => {
-        const etapa    = ETAPAS_UPLOAD[indice];
-        const pct      = Math.round(((indice + 1) / ETAPAS_UPLOAD.length) * 90);
-        const textoEl  = document.querySelector(".progress-texto");
-        const barraEl  = document.getElementById("progressBarFill");
+        const etapa   = ETAPAS_UPLOAD[indice];
+        const pct     = Math.round(((indice + 1) / ETAPAS_UPLOAD.length) * 90);
+        const textoEl = document.querySelector(".progress-texto");
+        const barraEl = document.getElementById("progressBarFill");
         if (textoEl) textoEl.textContent = etapa.texto;
         if (barraEl) barraEl.style.width = pct + "%";
         setTimeout(resolve, etapa.duracao || 0);
@@ -461,7 +473,7 @@ function _finalizarProgresso(mensagem, tipo = "success") {
     const barraEl = document.getElementById("progressBarFill");
     if (barraEl) barraEl.style.width = "100%";
     setTimeout(() => {
-        statusEl.className = `status-badge ${tipo}`;
+        statusEl.className   = `status-badge ${tipo}`;
         statusEl.textContent = mensagem;
     }, 400);
 }
@@ -538,8 +550,6 @@ function adicionarMensagem(autor, texto, salvar = true) {
     const msg = document.createElement("div");
     msg.className = `message ${autor === "ai" ? "system" : "user"}`;
     msg.innerHTML = `<div class="message-content">${texto.replace(/\n/g, "<br>")}</div>`;
-
-    // Animação de entrada suave
     msg.style.opacity   = "0";
     msg.style.transform = "translateY(6px)";
     chat.appendChild(msg);
@@ -548,7 +558,6 @@ function adicionarMensagem(autor, texto, salvar = true) {
         msg.style.opacity    = "1";
         msg.style.transform  = "translateY(0)";
     });
-
     chat.scrollTop = chat.scrollHeight;
     if (salvar) { state.mensagens.push({ autor, texto }); salvarEstado(); }
 }
@@ -581,22 +590,16 @@ function limparChatVisual() {
 async function carregarHistorico() {
     const lista = document.getElementById("listaContratos");
     if (!lista) return;
-
-    // Mostra skeleton imediatamente enquanto carrega
     _renderSkeletonBiblioteca(lista);
-
     renderizarSeletorPerspectiva();
     renderizarFiltroSetores();
-
     await _buscarEExibirContratos();
 }
 
 function _renderSkeletonBiblioteca(container) {
     const skeletons = Array.from({ length: 6 }, () => `
         <div class="skeleton-card">
-            <div class="skeleton-card-header">
-                <div class="skeleton-line w80"></div>
-            </div>
+            <div class="skeleton-card-header"><div class="skeleton-line w80"></div></div>
             <div class="skeleton-card-body">
                 <div class="skeleton-badge"></div>
                 <div class="skeleton-line w40" style="margin-top:.5rem"></div>
@@ -605,8 +608,7 @@ function _renderSkeletonBiblioteca(container) {
                 <div class="skeleton-line w80"></div>
                 <div class="skeleton-actions"></div>
             </div>
-        </div>
-    `).join("");
+        </div>`).join("");
     container.innerHTML = `<div class="history-grid skeleton-grid">${skeletons}</div>`;
 }
 
@@ -615,18 +617,11 @@ async function _buscarEExibirContratos() {
     if (!lista) return;
 
     const params = new URLSearchParams();
-
-    if (perspectiva.analystId !== null) {
-        params.append("analyst_id", perspectiva.analystId);
-    }
-    if (setorFiltroAtivo !== "todos") {
-        params.append("sector_id", setorFiltroAtivo);
-    }
-
-    const url = `${API}/contratos/listar?${params.toString()}`;
+    if (perspectiva.analystId !== null) params.append("analyst_id", perspectiva.analystId);
+    if (setorFiltroAtivo !== "todos")   params.append("sector_id",  setorFiltroAtivo);
 
     try {
-        const res = await fetch(url, {
+        const res = await fetch(`${API}/contratos/listar?${params.toString()}`, {
             headers: { Authorization: `Bearer ${usuario.token}` }
         });
         if (!res.ok) throw new Error(`Erro ${res.status}`);
@@ -644,27 +639,20 @@ function renderizarSeletorPerspectiva() {
     const container = document.getElementById("seletorPerspectiva");
     if (!container) return;
 
-    const temColegas = usuariosVisiveis.length > 0;
-    const temSetores = setoresVisiveis.length > 0;
-
-    if (!temColegas && !temSetores && !usuario.isAdmin) {
-        container.innerHTML = "";
-        return;
-    }
-
+    const temColegas    = usuariosVisiveis.length > 0;
+    const temSetores    = setoresVisiveis.length > 0;
     const euSelecionado = perspectiva.analystId === null;
 
+    if (!temColegas && !temSetores && !usuario.isAdmin) { container.innerHTML = ""; return; }
+
     let indicadorHtml = "";
-    if (!euSelecionado && perspectiva.analystId !== null) {
+    if (!euSelecionado) {
         const analista = usuariosVisiveis.find(u => u.id === perspectiva.analystId);
         if (analista) {
             indicadorHtml = `
             <div class="perspectiva-indicador">
-                <i data-lucide="eye"></i>
-                Visualizando análises de <strong>${analista.nome}</strong>
-                <button class="btn-voltar-minha" onclick="voltarMinhasPerspectiva()">
-                    ← Voltar às minhas
-                </button>
+                ${ic('eye')} Visualizando análises de <strong>${analista.nome}</strong>
+                <button class="btn-voltar-minha" onclick="voltarMinhasPerspectiva()">← Voltar às minhas</button>
             </div>`;
         }
     }
@@ -674,13 +662,11 @@ function renderizarSeletorPerspectiva() {
         escopoHtml = `
         <div class="escopo-wrap">
             <span class="escopo-label">Escopo:</span>
-            <button class="escopo-btn ${perspectiva.escopo === "meus" ? "ativo" : ""}"
-                onclick="definirEscopo('meus')">
-                <i data-lucide="user"></i> Meus contratos
+            <button class="escopo-btn ${perspectiva.escopo === "meus" ? "ativo" : ""}" onclick="definirEscopo('meus')">
+                ${ic('user')} Meus contratos
             </button>
-            <button class="escopo-btn ${perspectiva.escopo === "todos" ? "ativo" : ""}"
-                onclick="definirEscopo('todos')">
-                <i data-lucide="users"></i> Todos do setor
+            <button class="escopo-btn ${perspectiva.escopo === "todos" ? "ativo" : ""}" onclick="definirEscopo('todos')">
+                ${ic('users')} Todos do setor
             </button>
         </div>`;
     }
@@ -690,8 +676,7 @@ function renderizarSeletorPerspectiva() {
         const setoresInfo = setoresVisiveis.map(slug => {
             const s = setoresDisponiveis.find(x => x.id === slug);
             return s ? `<span class="setor-visivel-badge" style="color:${s.cor};background:${s.cor}15;border:1px solid ${s.cor}30">
-                <i data-lucide="${s.icon}" style="width:11px;height:11px;display:inline;vertical-align:middle;margin-right:.25rem"></i>
-                ${s.nome}
+                ${ic(s.icon)} ${s.nome}
             </span>` : "";
         }).join("");
         if (setoresInfo) {
@@ -706,24 +691,15 @@ function renderizarSeletorPerspectiva() {
     container.innerHTML = `
         <div class="perspectiva-wrap">
             ${temColegas || usuario.isAdmin ? `
-            <span class="perspectiva-label">
-                <i data-lucide="eye" style="display:inline;width:11px;height:11px;vertical-align:middle"></i>
-                Perspectiva
-            </span>
+            <span class="perspectiva-label">${ic('eye')} Perspectiva</span>
             <div class="perspectiva-selector">
-                <button class="perspectiva-btn meu ${euSelecionado ? "ativo" : ""}"
-                    onclick="selecionarPerspectiva(null)">
-                    <span class="pav-avatar" style="background:#3b82f620;color:#3b82f6">
-                        ${usuario.nome.charAt(0).toUpperCase()}
-                    </span>
+                <button class="perspectiva-btn meu ${euSelecionado ? "ativo" : ""}" onclick="selecionarPerspectiva(null)">
+                    <span class="pav-avatar" style="background:#3b82f620;color:#3b82f6">${usuario.nome.charAt(0).toUpperCase()}</span>
                     Meus contratos
                 </button>
                 ${usuariosVisiveis.map(u => `
-                <button class="perspectiva-btn outro ${perspectiva.analystId === u.id ? "ativo" : ""}"
-                    onclick="selecionarPerspectiva(${u.id})">
-                    <span class="pav-avatar" style="background:${u.cor}20;color:${u.cor}">
-                        ${(u.iniciais || u.nome.charAt(0)).toUpperCase()}
-                    </span>
+                <button class="perspectiva-btn outro ${perspectiva.analystId === u.id ? "ativo" : ""}" onclick="selecionarPerspectiva(${u.id})">
+                    <span class="pav-avatar" style="background:${u.cor}20;color:${u.cor}">${(u.iniciais || u.nome.charAt(0)).toUpperCase()}</span>
                     ${u.nome}
                 </button>`).join("")}
             </div>` : ""}
@@ -731,8 +707,6 @@ function renderizarSeletorPerspectiva() {
             ${escopoHtml}
             ${indicadorHtml}
         </div>`;
-
-    if (typeof lucide !== "undefined") lucide.createIcons();
 }
 
 async function selecionarPerspectiva(analystId) {
@@ -742,7 +716,6 @@ async function selecionarPerspectiva(analystId) {
     const lista = document.getElementById("listaContratos");
     if (lista) _renderSkeletonBiblioteca(lista);
     await _buscarEExibirContratos();
-    if (typeof lucide !== "undefined") lucide.createIcons();
 }
 
 async function definirEscopo(escopo) {
@@ -752,7 +725,6 @@ async function definirEscopo(escopo) {
     const lista = document.getElementById("listaContratos");
     if (lista) _renderSkeletonBiblioteca(lista);
     await _buscarEExibirContratos();
-    if (typeof lucide !== "undefined") lucide.createIcons();
 }
 
 async function voltarMinhasPerspectiva() {
@@ -762,7 +734,6 @@ async function voltarMinhasPerspectiva() {
     const lista = document.getElementById("listaContratos");
     if (lista) _renderSkeletonBiblioteca(lista);
     await _buscarEExibirContratos();
-    if (typeof lucide !== "undefined") lucide.createIcons();
 }
 
 // ─── RENDERIZAR CONTRATOS ─────────────────────────────────────────────────────
@@ -790,44 +761,36 @@ function renderizarContratos(lista) {
     filtrados.forEach((c, i) => {
         const s     = setoresDisponiveis.find(x => x.id === (c.setor || "juridico").toLowerCase());
         const badge = s
-            ? `<span class="setor-badge-card" data-setor="${s.id}"><i data-lucide="${s.icon}"></i>${s.nome}</span>`
+            ? `<span class="setor-badge-card" data-setor="${s.id}">${ic(s.icon)}${s.nome}</span>`
             : "";
 
         const mostrarAnalista = c.show_analyst && c.analista && c.analista.id;
         const analistaBadge   = mostrarAnalista
-            ? `<span class="analista-badge">
-                <i data-lucide="user"></i>${c.analista.nome}
-               </span>`
+            ? `<span class="analista-badge">${ic('user')}${c.analista.nome}</span>`
             : "";
 
         const card = document.createElement("div");
-        card.className = "history-card";
-        // Entrada escalonada suave
+        card.className       = "history-card";
         card.style.opacity   = "0";
         card.style.transform = "translateY(10px)";
         card.innerHTML = `
             <div class="card-header"><h3>${c.nome}</h3></div>
             <div class="card-body">
-                <div class="setor-badge-wrap">
-                    ${badge}
-                </div>
+                <div class="setor-badge-wrap">${badge}</div>
                 <div class="date-tag">
-                    <span class="date-tag-left">
-                        <i data-lucide="calendar"></i>${new Date(c.data).toLocaleDateString("pt-BR")}
-                    </span>
+                    <span class="date-tag-left">${ic('calendar')}${new Date(c.data).toLocaleDateString("pt-BR")}</span>
                     ${analistaBadge}
                 </div>
                 <p class="preview-text">${c.preview || ""}</p>
                 <div class="card-actions">
                     <button type="button" onclick="abrirDoHistorico(${c.id})" class="btn-open">Abrir Análise</button>
                     ${c.is_mine || usuario.isAdmin
-                        ? `<button type="button" onclick="solicitarExclusao(${c.id})" class="btn-delete-icon"><i data-lucide="trash-2"></i></button>`
+                        ? `<button type="button" onclick="solicitarExclusao(${c.id})" class="btn-delete-icon">${ic('trash-2')}</button>`
                         : ""}
                 </div>
             </div>`;
         el.appendChild(card);
 
-        // Anima cada card com delay escalonado
         setTimeout(() => {
             card.style.transition = "opacity 0.25s ease, transform 0.25s ease";
             card.style.opacity    = "1";
@@ -835,7 +798,6 @@ function renderizarContratos(lista) {
         }, i * 50);
     });
 
-    if (typeof lucide !== "undefined") lucide.createIcons();
     atualizarContadorResultados(filtrados.length, lista.length);
 }
 
@@ -982,7 +944,7 @@ function mostrarAviso(mensagem, tipo = "info") {
             <div class="modal-card">
                 <div class="modal-icon" id="avisoIcon"></div>
                 <h3 id="avisoTitulo"></h3>
-                <p  id="avisoTexto"></p>
+                <p id="avisoTexto"></p>
                 <div class="modal-actions">
                     <button type="button" onclick="fecharModal('avisoModal')" class="btn-primary">OK</button>
                 </div>
@@ -991,27 +953,16 @@ function mostrarAviso(mensagem, tipo = "info") {
         document.body.appendChild(overlay);
     }
 
-    const icones = {
-        info:    { svg: "info",           cls: "info"    },
-        warning: { svg: "alert-triangle", cls: "warning" },
-        error:   { svg: "alert-circle",   cls: "warning" },
-        success: { svg: "check-circle-2", cls: "info"    },
-    };
-    const titulos = {
-        info:    "Atenção",
-        warning: "Atenção",
-        error:   "Ocorreu um erro",
-        success: "Concluído",
-    };
+    const icones  = { info: "info", warning: "alert-triangle", error: "alert-circle", success: "check-circle-2" };
+    const classes = { info: "info", warning: "warning", error: "warning", success: "info" };
+    const titulos = { info: "Atenção", warning: "Atenção", error: "Ocorreu um erro", success: "Concluído" };
 
-    const cfg = icones[tipo] || icones.info;
-    document.getElementById("avisoIcon").className = `modal-icon ${cfg.cls}`;
-    document.getElementById("avisoIcon").innerHTML  = `<i data-lucide="${cfg.svg}"></i>`;
+    document.getElementById("avisoIcon").className = `modal-icon ${classes[tipo] || "info"}`;
+    document.getElementById("avisoIcon").innerHTML  = ic(icones[tipo] || "info");
     document.getElementById("avisoTitulo").textContent = titulos[tipo] || "Aviso";
     document.getElementById("avisoTexto").textContent  = mensagem;
 
     abrirModal("avisoModal");
-    if (typeof lucide !== "undefined") lucide.createIcons();
 }
 
 // ─── MODAIS ───────────────────────────────────────────────────────────────────
@@ -1041,7 +992,6 @@ function executarResete() {
     if (inp) inp.value = "";
     fecharModal("novaAnaliseModal");
     trocarAba("nova");
-    if (typeof lucide !== "undefined") lucide.createIcons();
 }
 
 function abrirModalResumo() {
@@ -1054,10 +1004,9 @@ function abrirModalResumo() {
     const footer = document.querySelector("#resumoModal .modal-footer");
     if (footer) {
         footer.innerHTML = `
-            <button type="button" onclick="fecharModal('resumoModal')" class="btn-modal-footer btn-cancelar"><i data-lucide="x"></i> Fechar</button>
-            <button type="button" onclick="abrirModalImpressao()" class="btn-modal-footer btn-imprimir"><i data-lucide="printer"></i> Imprimir</button>
-            <button type="button" id="btnCopiarResumo" onclick="copiarResumo()" class="btn-modal-footer btn-copiar"><i data-lucide="copy"></i> Copiar Texto</button>`;
-        if (typeof lucide !== "undefined") lucide.createIcons();
+            <button type="button" onclick="fecharModal('resumoModal')" class="btn-modal-footer btn-cancelar">${ic('x')} Fechar</button>
+            <button type="button" onclick="abrirModalImpressao()" class="btn-modal-footer btn-imprimir">${ic('printer')} Imprimir</button>
+            <button type="button" id="btnCopiarResumo" onclick="copiarResumo()" class="btn-modal-footer btn-copiar">${ic('copy')} Copiar Texto</button>`;
     }
     abrirModal("resumoModal");
 }
@@ -1075,73 +1024,54 @@ function abrirModalImpressao() {
             <div class="modal-card large print-modal-card">
                 <div class="modal-header">
                     <div class="header-title">
-                        <i data-lucide="printer"></i>
+                        ${ic('printer')}
                         <h3>Imprimir Análise</h3>
                     </div>
-                    <button type="button" onclick="fecharModalImpressao()" class="btn-close">
-                        <i data-lucide="x"></i>
-                    </button>
+                    <button type="button" onclick="fecharModalImpressao()" class="btn-close">${ic('x')}</button>
                 </div>
                 <div class="print-preview-body">
                     <iframe id="printFrame" class="print-frame"></iframe>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" onclick="fecharModalImpressao()" class="btn-modal-footer btn-cancelar">
-                        <i data-lucide="x"></i> Fechar
-                    </button>
-                    <button type="button" onclick="executarImpressao()" class="btn-modal-footer btn-imprimir">
-                        <i data-lucide="printer"></i> Confirmar Impressão
-                    </button>
+                    <button type="button" onclick="fecharModalImpressao()" class="btn-modal-footer btn-cancelar">${ic('x')} Fechar</button>
+                    <button type="button" onclick="executarImpressao()" class="btn-modal-footer btn-imprimir">${ic('printer')} Confirmar Impressão</button>
                 </div>
             </div>`;
         overlay.addEventListener("click", (e) => { if (e.target === overlay) fecharModalImpressao(); });
         document.body.appendChild(overlay);
     }
 
-    const frame = document.getElementById("printFrame");
-    frame.srcdoc = _gerarHtmlImpressao();
+    document.getElementById("printFrame").srcdoc = _gerarHtmlImpressao();
     abrirModal("printModal");
-    if (typeof lucide !== "undefined") lucide.createIcons();
 }
 
-function fecharModalImpressao() {
-    fecharModal("printModal");
-    abrirModal("resumoModal");
-}
+function fecharModalImpressao() { fecharModal("printModal"); abrirModal("resumoModal"); }
 
 function executarImpressao() {
     const frame = document.getElementById("printFrame");
-    if (frame?.contentWindow) {
-        frame.contentWindow.focus();
-        frame.contentWindow.print();
-    }
+    if (frame?.contentWindow) { frame.contentWindow.focus(); frame.contentWindow.print(); }
 }
 
 function _gerarHtmlImpressao() {
     return `<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-<meta charset="UTF-8">
+<html lang="pt-BR"><head><meta charset="UTF-8">
 <title>Análise — ${state.nomeContrato}</title>
 <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: 'Georgia', serif; color: #1a1a1a; font-size: 11pt; line-height: 1.7; padding: 2cm; background: #fff; }
-    h1 { font-size: 18pt; color: #1e40af; border-bottom: 3px solid #3b82f6; padding-bottom: 10px; margin-bottom: 8px; }
-    .meta { color: #64748b; font-size: 9.5pt; margin-bottom: 24px; font-family: Arial, sans-serif; }
-    hr { border: none; border-top: 1px solid #e2e8f0; margin: 20px 0; }
-    .content { white-space: pre-wrap; text-align: justify; font-size: 10.5pt; }
-    .footer { margin-top: 40px; font-size: 8.5pt; color: #94a3b8; border-top: 1px solid #e2e8f0; padding-top: 10px; font-family: Arial, sans-serif; text-align: center; }
-    @media print { body { padding: 1.5cm; } }
-</style>
-</head>
-<body>
+    * { margin:0;padding:0;box-sizing:border-box; }
+    body { font-family:'Georgia',serif;color:#1a1a1a;font-size:11pt;line-height:1.7;padding:2cm;background:#fff; }
+    h1 { font-size:18pt;color:#1e40af;border-bottom:3px solid #3b82f6;padding-bottom:10px;margin-bottom:8px; }
+    .meta { color:#64748b;font-size:9.5pt;margin-bottom:24px;font-family:Arial,sans-serif; }
+    hr { border:none;border-top:1px solid #e2e8f0;margin:20px 0; }
+    .content { white-space:pre-wrap;text-align:justify;font-size:10.5pt; }
+    .footer { margin-top:40px;font-size:8.5pt;color:#94a3b8;border-top:1px solid #e2e8f0;padding-top:10px;font-family:Arial,sans-serif;text-align:center; }
+    @media print { body { padding:1.5cm; } }
+</style></head><body>
     <h1>Análise Completa do Contrato</h1>
-    <div class="meta">${state.nomeContrato} — ${new Date().toLocaleDateString("pt-BR", { day:"2-digit", month:"long", year:"numeric" })}</div>
+    <div class="meta">${state.nomeContrato} — ${new Date().toLocaleDateString("pt-BR",{day:"2-digit",month:"long",year:"numeric"})}</div>
     <hr>
     <div class="content">${state.resumo}</div>
     <div class="footer">Gerado pelo Sistema Opersan</div>
-</body>
-</html>`;
+</body></html>`;
 }
 
 // ─── CÓPIA ────────────────────────────────────────────────────────────────────
@@ -1151,12 +1081,11 @@ function copiarResumo() {
     const btn = document.getElementById("btnCopiarResumo");
     const ok = () => {
         if (btn) {
-            btn.innerHTML = '<i data-lucide="check"></i> Copiado!';
+            btn.innerHTML = `${ic('check')} Copiado!`;
             btn.classList.add("btn-copiar--ok");
             setTimeout(() => {
-                btn.innerHTML = '<i data-lucide="copy"></i> Copiar Texto';
+                btn.innerHTML = `${ic('copy')} Copiar Texto`;
                 btn.classList.remove("btn-copiar--ok");
-                if (typeof lucide !== "undefined") lucide.createIcons();
             }, 2000);
         }
     };
@@ -1187,11 +1116,11 @@ function _formatarNome(username) {
 
 function _getIniciais(nome) {
     const partes = nome.trim().split(" ");
-    if (partes.length >= 2) return (partes[0][0] + partes[partes.length - 1][0]).toUpperCase();
+    if (partes.length >= 2) return (partes[0][0] + partes[partes.length-1][0]).toUpperCase();
     return nome.slice(0, 2).toUpperCase();
 }
 
 function _avatarColor(id) {
-    const palette = ["#3b82f6", "#10b981", "#f59e0b", "#8b5cf6", "#ef4444", "#06b6d4", "#ec4899", "#14b8a6"];
+    const palette = ["#3b82f6","#10b981","#f59e0b","#8b5cf6","#ef4444","#06b6d4","#ec4899","#14b8a6"];
     return palette[id % palette.length];
 }
