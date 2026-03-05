@@ -1,11 +1,5 @@
 // ════════════════════════════════════════════════════════════════════════════
-//  OPERSAN — script.js
-//  Correções aplicadas:
-//  · Sidebar renderizado UMA vez com dados já prontos (sem double-render)
-//  · configurarPerfil() removida do fluxo principal (sidebar é fonte de verdade)
-//  · Todos os lucide.createIcons() substituídos por _criarIcones() (rAF)
-//  · _criarIcones() definida aqui também como fallback caso sidebar.js não
-//    tenha carregado ainda (ordem de <script> no HTML)
+//  OPERSAN — script.js  (com progresso de upload e skeleton na biblioteca)
 // ════════════════════════════════════════════════════════════════════════════
 
 const API = "https://agente-ia-62sa.onrender.com";
@@ -59,17 +53,6 @@ function limparEstado() {
     localStorage.removeItem("idAtivo");
 }
 
-// ─── HELPER DE ÍCONES ─────────────────────────────────────────────────────────
-// Centraliza todas as chamadas a lucide.createIcons() via requestAnimationFrame.
-// Isso evita o flash de [data-lucide] sem SVG: o browser já finalizou o layout
-// antes de o lucide varrer o DOM, então os ícones aparecem prontos de uma vez.
-// Se sidebar.js carregar depois deste arquivo, a função é redefinida lá — sem problema,
-// ambas fazem a mesma coisa.
-function _criarIcones() {
-    if (typeof lucide === "undefined") return;
-    requestAnimationFrame(() => lucide.createIcons());
-}
-
 // ─── BOOT ─────────────────────────────────────────────────────────────────────
 
 document.addEventListener("DOMContentLoaded", async () => {
@@ -82,6 +65,9 @@ document.addEventListener("DOMContentLoaded", async () => {
         return;
     }
 
+    // Mostra skeleton do perfil imediatamente enquanto autentica
+    _renderSkeletonSidebar();
+
     try {
         await autenticarUsuario();
     } catch (err) {
@@ -91,29 +77,14 @@ document.addEventListener("DOMContentLoaded", async () => {
         return;
     }
 
-    // Carrega visibilidade antes de qualquer render
     await carregarVisibilidade();
 
-    // Sidebar renderizado UMA única vez com todos os dados já prontos.
-    // usuario.nome já está formatado por autenticarUsuario().
-    // usuario.isAdmin passado explicitamente para evitar recalcular dentro do sidebar.
     if (typeof renderizarSidebar === "function") {
-        renderizarSidebar({
-            username: usuario.nome,
-            role:     usuario.role,
-            roles:    usuario.roles,
-            isAdmin:  usuario.isAdmin
-        });
+        renderizarSidebar({ username: usuario.nome, role: usuario.role, roles: usuario.roles });
     }
 
-    // Setores dependem de usuario.* já preenchido
     configurarSetores();
-
-    // Não chama configurarPerfil() aqui — sidebar já é a fonte de verdade para
-    // nome/avatar/role. Se houver elementos externos ao sidebar, _sincronizarPerfil
-    // cuida deles sem reescrever o que o sidebar já renderizou.
-    _sincronizarPerfil();
-
+    configurarPerfil();
     renderizarSetoresChat();
     configurarEventos();
 
@@ -127,9 +98,35 @@ document.addEventListener("DOMContentLoaded", async () => {
         habilitarChat(false);
     }
 
-    // Uma única chamada de ícones no final do boot, via rAF
-    _criarIcones();
+    if (typeof lucide !== "undefined") lucide.createIcons();
 });
+
+// ─── SKELETON SIDEBAR (enquanto autentica) ────────────────────────────────────
+
+function _renderSkeletonSidebar() {
+    const container = document.getElementById('sidebar-container');
+    if (!container) return;
+    container.innerHTML = `
+        <div class="logo">
+            <div class="logo-icon"><i data-lucide="file-text"></i></div>
+            <h1>Opersan</h1>
+        </div>
+        <nav class="nav-menu">
+            <div class="skeleton-nav-item"></div>
+            <div class="skeleton-nav-item"></div>
+        </nav>
+        <div class="sidebar-footer">
+            <div class="skeleton-user">
+                <div class="skeleton-avatar"></div>
+                <div class="skeleton-user-info">
+                    <div class="skeleton-line w70"></div>
+                    <div class="skeleton-line w40"></div>
+                </div>
+            </div>
+        </div>
+    `;
+    if (typeof lucide !== "undefined") lucide.createIcons();
+}
 
 // ─── AUTENTICAÇÃO ─────────────────────────────────────────────────────────────
 
@@ -236,7 +233,7 @@ function renderizarSetoresChat() {
     if (setores.length === 1) {
         setorChatAtivo = setores[0].id;
         container.innerHTML = `<div class="chat-setor-badge-unico"><i data-lucide="${setores[0].icon}"></i> ${setores[0].nome}</div>`;
-        _criarIcones();
+        if (typeof lucide !== "undefined") lucide.createIcons();
         return;
     }
 
@@ -246,7 +243,7 @@ function renderizarSetoresChat() {
             <i data-lucide="${s.icon}"></i> ${s.nome}
         </button>`
     ).join("");
-    _criarIcones();
+    if (typeof lucide !== "undefined") lucide.createIcons();
 }
 
 function selecionarSetorChat(id) {
@@ -273,7 +270,7 @@ function renderizarFiltroSetores() {
             onclick="aplicarFiltroSetor('${s.id}')"><i data-lucide="${s.icon}"></i> ${s.nome}</button>`
     ).join("");
     container.innerHTML = html;
-    _criarIcones();
+    if (typeof lucide !== "undefined") lucide.createIcons();
 }
 
 function aplicarFiltroSetor(id) {
@@ -283,21 +280,19 @@ function aplicarFiltroSetor(id) {
 }
 
 // ─── PERFIL ───────────────────────────────────────────────────────────────────
-// Atualiza apenas elementos FORA do sidebar que usem data-perfil-*.
-// Não reescreve .user-name / .avatar dentro do sidebar — ele já está correto.
 
-function _sincronizarPerfil() {
-    const nome = usuario.nome || localStorage.getItem("userName") || "Usuário";
-    document.querySelectorAll("[data-perfil-nome]").forEach(el => el.textContent = nome);
-    document.querySelectorAll("[data-perfil-inicial]").forEach(el => el.textContent = nome.charAt(0).toUpperCase());
-    document.querySelectorAll("[data-perfil-role]").forEach(el =>
-        el.textContent = usuario.isAdmin ? "Administrador" : (usuario.role || "Usuário")
-    );
-}
-
-// Mantida como stub para compatibilidade com chamadas externas
 function configurarPerfil() {
-    _sincronizarPerfil();
+    let nome = localStorage.getItem("userName") || usuario.nome || "Usuário";
+    if (nome.includes("@")) {
+        nome = nome.split("@")[0].split(/[._-]/)
+            .map(p => p.charAt(0).toUpperCase() + p.slice(1).toLowerCase()).join(" ");
+    }
+    const elNome   = document.querySelector(".user-name");
+    const elAvatar = document.querySelector(".avatar");
+    const elRole   = document.querySelector(".user-role");
+    if (elNome)   elNome.textContent   = nome;
+    if (elAvatar) elAvatar.textContent = nome.charAt(0).toUpperCase();
+    if (elRole)   elRole.textContent   = usuario.isAdmin ? "Administrador" : (usuario.role || "Usuário");
 }
 
 // ─── EVENTOS ─────────────────────────────────────────────────────────────────
@@ -345,7 +340,15 @@ function configurarEventos() {
     });
 }
 
-// ─── UPLOAD ───────────────────────────────────────────────────────────────────
+// ─── UPLOAD COM PROGRESSO ─────────────────────────────────────────────────────
+
+// Etapas exibidas durante o upload (simuladas no frontend enquanto o backend processa)
+const ETAPAS_UPLOAD = [
+    { texto: "📄 Lendo o PDF...",              duracao: 800  },
+    { texto: "🔍 Extraindo texto...",           duracao: 1200 },
+    { texto: "🤖 IA analisando o contrato...", duracao: null }, // dura até o fetch retornar
+    { texto: "💾 Salvando análise...",          duracao: 600  },
+];
 
 async function enviarContrato() {
     const input   = document.getElementById("inputArquivo");
@@ -354,7 +357,12 @@ async function enviarContrato() {
 
     const setorInfo = setoresDisponiveis.find(s => s.id === setorSelecionado);
     const nomeSetor = setorInfo?.nome || "Jurídico";
-    atualizarStatus(`⏳ ANALISANDO PARA ${nomeSetor.toUpperCase()}...`, "processing");
+
+    // Inicia barra de progresso
+    _iniciarProgresso();
+    await _avancarEtapa(0); // "Lendo o PDF..."
+    await _avancarEtapa(1); // "Extraindo texto..."
+    _avancarEtapaSemEspera(2); // "IA analisando..." — fica aqui até o fetch terminar
 
     const fd = new FormData();
     fd.append("file",  arquivo);
@@ -375,6 +383,9 @@ async function enviarContrato() {
 
         const data = await res.json();
 
+        await _avancarEtapa(3); // "Salvando análise..."
+        _finalizarProgresso("✅ ANÁLISE CONCLUÍDA!");
+
         state.contratoCarregado = true;
         state.resumo            = data.resumo;
         state.nomeContrato      = data.nome || arquivo.name;
@@ -384,7 +395,6 @@ async function enviarContrato() {
         salvarEstado();
 
         renderResumo(data.resumo);
-        atualizarStatus("✅ ANÁLISE CONCLUÍDA!", "success");
 
         const chatBox = document.getElementById("chatBox");
         if (chatBox) {
@@ -400,9 +410,60 @@ async function enviarContrato() {
 
     } catch (err) {
         console.error("❌ Upload:", err);
-        atualizarStatus(`❌ Erro: ${err.message}`, "error");
+        _finalizarProgresso(`❌ Erro: ${err.message}`, "error");
         mostrarAviso("Erro no processamento: " + err.message, "error");
     }
+}
+
+// ── helpers de progresso ──────────────────────────────────────────────────────
+
+let _etapaAtual = 0;
+
+function _iniciarProgresso() {
+    _etapaAtual = 0;
+    const statusEl = document.getElementById("status");
+    if (!statusEl) return;
+    statusEl.className = "status-badge processing";
+    statusEl.classList.remove("hidden");
+    statusEl.innerHTML = `
+        <div class="progress-wrap">
+            <span class="progress-texto">⏳ Iniciando...</span>
+            <div class="progress-bar-track">
+                <div class="progress-bar-fill" id="progressBarFill" style="width:5%"></div>
+            </div>
+        </div>`;
+}
+
+function _avancarEtapa(indice) {
+    return new Promise(resolve => {
+        const etapa    = ETAPAS_UPLOAD[indice];
+        const pct      = Math.round(((indice + 1) / ETAPAS_UPLOAD.length) * 90);
+        const textoEl  = document.querySelector(".progress-texto");
+        const barraEl  = document.getElementById("progressBarFill");
+        if (textoEl) textoEl.textContent = etapa.texto;
+        if (barraEl) barraEl.style.width = pct + "%";
+        setTimeout(resolve, etapa.duracao || 0);
+    });
+}
+
+function _avancarEtapaSemEspera(indice) {
+    const etapa   = ETAPAS_UPLOAD[indice];
+    const pct     = Math.round(((indice + 1) / ETAPAS_UPLOAD.length) * 90);
+    const textoEl = document.querySelector(".progress-texto");
+    const barraEl = document.getElementById("progressBarFill");
+    if (textoEl) textoEl.textContent = etapa.texto;
+    if (barraEl) barraEl.style.width = pct + "%";
+}
+
+function _finalizarProgresso(mensagem, tipo = "success") {
+    const statusEl = document.getElementById("status");
+    if (!statusEl) return;
+    const barraEl = document.getElementById("progressBarFill");
+    if (barraEl) barraEl.style.width = "100%";
+    setTimeout(() => {
+        statusEl.className = `status-badge ${tipo}`;
+        statusEl.textContent = mensagem;
+    }, 400);
 }
 
 // ─── CHAT ─────────────────────────────────────────────────────────────────────
@@ -431,7 +492,7 @@ async function enviarPergunta() {
     const loading = document.createElement("div");
     loading.id        = "chatLoading";
     loading.className = "message system";
-    loading.innerHTML = '<div class="message-content">⏳ Analisando...</div>';
+    loading.innerHTML = '<div class="message-content typing-indicator"><span></span><span></span><span></span></div>';
     chatBox?.appendChild(loading);
     if (chatBox) chatBox.scrollTop = chatBox.scrollHeight;
 
@@ -477,7 +538,17 @@ function adicionarMensagem(autor, texto, salvar = true) {
     const msg = document.createElement("div");
     msg.className = `message ${autor === "ai" ? "system" : "user"}`;
     msg.innerHTML = `<div class="message-content">${texto.replace(/\n/g, "<br>")}</div>`;
+
+    // Animação de entrada suave
+    msg.style.opacity   = "0";
+    msg.style.transform = "translateY(6px)";
     chat.appendChild(msg);
+    requestAnimationFrame(() => {
+        msg.style.transition = "opacity 0.2s ease, transform 0.2s ease";
+        msg.style.opacity    = "1";
+        msg.style.transform  = "translateY(0)";
+    });
+
     chat.scrollTop = chat.scrollHeight;
     if (salvar) { state.mensagens.push({ autor, texto }); salvarEstado(); }
 }
@@ -505,17 +576,38 @@ function limparChatVisual() {
     salvarEstado();
 }
 
-// ─── BIBLIOTECA ───────────────────────────────────────────────────────────────
+// ─── BIBLIOTECA COM SKELETON ──────────────────────────────────────────────────
 
 async function carregarHistorico() {
     const lista = document.getElementById("listaContratos");
     if (!lista) return;
-    lista.innerHTML = "<p class='preview-empty'>Carregando biblioteca...</p>";
+
+    // Mostra skeleton imediatamente enquanto carrega
+    _renderSkeletonBiblioteca(lista);
 
     renderizarSeletorPerspectiva();
     renderizarFiltroSetores();
 
     await _buscarEExibirContratos();
+}
+
+function _renderSkeletonBiblioteca(container) {
+    const skeletons = Array.from({ length: 6 }, () => `
+        <div class="skeleton-card">
+            <div class="skeleton-card-header">
+                <div class="skeleton-line w80"></div>
+            </div>
+            <div class="skeleton-card-body">
+                <div class="skeleton-badge"></div>
+                <div class="skeleton-line w40" style="margin-top:.5rem"></div>
+                <div class="skeleton-line w90" style="margin-top:.75rem"></div>
+                <div class="skeleton-line w70"></div>
+                <div class="skeleton-line w80"></div>
+                <div class="skeleton-actions"></div>
+            </div>
+        </div>
+    `).join("");
+    container.innerHTML = `<div class="history-grid skeleton-grid">${skeletons}</div>`;
 }
 
 async function _buscarEExibirContratos() {
@@ -640,31 +732,37 @@ function renderizarSeletorPerspectiva() {
             ${indicadorHtml}
         </div>`;
 
-    _criarIcones();
+    if (typeof lucide !== "undefined") lucide.createIcons();
 }
 
 async function selecionarPerspectiva(analystId) {
     perspectiva.analystId = analystId;
     if (analystId !== null) perspectiva.escopo = "meus";
     renderizarSeletorPerspectiva();
+    const lista = document.getElementById("listaContratos");
+    if (lista) _renderSkeletonBiblioteca(lista);
     await _buscarEExibirContratos();
-    _criarIcones();
+    if (typeof lucide !== "undefined") lucide.createIcons();
 }
 
 async function definirEscopo(escopo) {
     if (!usuario.isAdmin) return;
     perspectiva.escopo = escopo;
     renderizarSeletorPerspectiva();
+    const lista = document.getElementById("listaContratos");
+    if (lista) _renderSkeletonBiblioteca(lista);
     await _buscarEExibirContratos();
-    _criarIcones();
+    if (typeof lucide !== "undefined") lucide.createIcons();
 }
 
 async function voltarMinhasPerspectiva() {
     perspectiva.analystId = null;
     perspectiva.escopo    = "meus";
     renderizarSeletorPerspectiva();
+    const lista = document.getElementById("listaContratos");
+    if (lista) _renderSkeletonBiblioteca(lista);
     await _buscarEExibirContratos();
-    _criarIcones();
+    if (typeof lucide !== "undefined") lucide.createIcons();
 }
 
 // ─── RENDERIZAR CONTRATOS ─────────────────────────────────────────────────────
@@ -689,7 +787,7 @@ function renderizarContratos(lista) {
     }
 
     el.innerHTML = "";
-    filtrados.forEach(c => {
+    filtrados.forEach((c, i) => {
         const s     = setoresDisponiveis.find(x => x.id === (c.setor || "juridico").toLowerCase());
         const badge = s
             ? `<span class="setor-badge-card" data-setor="${s.id}"><i data-lucide="${s.icon}"></i>${s.nome}</span>`
@@ -704,6 +802,9 @@ function renderizarContratos(lista) {
 
         const card = document.createElement("div");
         card.className = "history-card";
+        // Entrada escalonada suave
+        card.style.opacity   = "0";
+        card.style.transform = "translateY(10px)";
         card.innerHTML = `
             <div class="card-header"><h3>${c.nome}</h3></div>
             <div class="card-body">
@@ -725,9 +826,16 @@ function renderizarContratos(lista) {
                 </div>
             </div>`;
         el.appendChild(card);
+
+        // Anima cada card com delay escalonado
+        setTimeout(() => {
+            card.style.transition = "opacity 0.25s ease, transform 0.25s ease";
+            card.style.opacity    = "1";
+            card.style.transform  = "translateY(0)";
+        }, i * 50);
     });
 
-    _criarIcones();
+    if (typeof lucide !== "undefined") lucide.createIcons();
     atualizarContadorResultados(filtrados.length, lista.length);
 }
 
@@ -862,7 +970,7 @@ function atualizarStatus(texto, tipo) {
     el.classList.remove("hidden");
 }
 
-// ─── MODAL DE AVISO ───────────────────────────────────────────────────────────
+// ─── MODAL DE AVISO ──────────────────────────────────────────────────────────
 
 function mostrarAviso(mensagem, tipo = "info") {
     let overlay = document.getElementById("avisoModal");
@@ -903,7 +1011,7 @@ function mostrarAviso(mensagem, tipo = "info") {
     document.getElementById("avisoTexto").textContent  = mensagem;
 
     abrirModal("avisoModal");
-    _criarIcones();
+    if (typeof lucide !== "undefined") lucide.createIcons();
 }
 
 // ─── MODAIS ───────────────────────────────────────────────────────────────────
@@ -933,7 +1041,7 @@ function executarResete() {
     if (inp) inp.value = "";
     fecharModal("novaAnaliseModal");
     trocarAba("nova");
-    _criarIcones();
+    if (typeof lucide !== "undefined") lucide.createIcons();
 }
 
 function abrirModalResumo() {
@@ -949,7 +1057,7 @@ function abrirModalResumo() {
             <button type="button" onclick="fecharModal('resumoModal')" class="btn-modal-footer btn-cancelar"><i data-lucide="x"></i> Fechar</button>
             <button type="button" onclick="abrirModalImpressao()" class="btn-modal-footer btn-imprimir"><i data-lucide="printer"></i> Imprimir</button>
             <button type="button" id="btnCopiarResumo" onclick="copiarResumo()" class="btn-modal-footer btn-copiar"><i data-lucide="copy"></i> Copiar Texto</button>`;
-        _criarIcones();
+        if (typeof lucide !== "undefined") lucide.createIcons();
     }
     abrirModal("resumoModal");
 }
@@ -958,7 +1066,6 @@ function abrirModalResumo() {
 
 function abrirModalImpressao() {
     fecharModal("resumoModal");
-
     let overlay = document.getElementById("printModal");
     if (!overlay) {
         overlay = document.createElement("div");
@@ -993,9 +1100,8 @@ function abrirModalImpressao() {
 
     const frame = document.getElementById("printFrame");
     frame.srcdoc = _gerarHtmlImpressao();
-
     abrirModal("printModal");
-    _criarIcones();
+    if (typeof lucide !== "undefined") lucide.createIcons();
 }
 
 function fecharModalImpressao() {
@@ -1019,42 +1125,12 @@ function _gerarHtmlImpressao() {
 <title>Análise — ${state.nomeContrato}</title>
 <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body {
-        font-family: 'Georgia', serif;
-        color: #1a1a1a;
-        font-size: 11pt;
-        line-height: 1.7;
-        padding: 2cm;
-        background: #fff;
-    }
-    h1 {
-        font-size: 18pt;
-        color: #1e40af;
-        border-bottom: 3px solid #3b82f6;
-        padding-bottom: 10px;
-        margin-bottom: 8px;
-    }
-    .meta {
-        color: #64748b;
-        font-size: 9.5pt;
-        margin-bottom: 24px;
-        font-family: Arial, sans-serif;
-    }
+    body { font-family: 'Georgia', serif; color: #1a1a1a; font-size: 11pt; line-height: 1.7; padding: 2cm; background: #fff; }
+    h1 { font-size: 18pt; color: #1e40af; border-bottom: 3px solid #3b82f6; padding-bottom: 10px; margin-bottom: 8px; }
+    .meta { color: #64748b; font-size: 9.5pt; margin-bottom: 24px; font-family: Arial, sans-serif; }
     hr { border: none; border-top: 1px solid #e2e8f0; margin: 20px 0; }
-    .content {
-        white-space: pre-wrap;
-        text-align: justify;
-        font-size: 10.5pt;
-    }
-    .footer {
-        margin-top: 40px;
-        font-size: 8.5pt;
-        color: #94a3b8;
-        border-top: 1px solid #e2e8f0;
-        padding-top: 10px;
-        font-family: Arial, sans-serif;
-        text-align: center;
-    }
+    .content { white-space: pre-wrap; text-align: justify; font-size: 10.5pt; }
+    .footer { margin-top: 40px; font-size: 8.5pt; color: #94a3b8; border-top: 1px solid #e2e8f0; padding-top: 10px; font-family: Arial, sans-serif; text-align: center; }
     @media print { body { padding: 1.5cm; } }
 </style>
 </head>
@@ -1077,11 +1153,10 @@ function copiarResumo() {
         if (btn) {
             btn.innerHTML = '<i data-lucide="check"></i> Copiado!';
             btn.classList.add("btn-copiar--ok");
-            _criarIcones();
             setTimeout(() => {
                 btn.innerHTML = '<i data-lucide="copy"></i> Copiar Texto';
                 btn.classList.remove("btn-copiar--ok");
-                _criarIcones();
+                if (typeof lucide !== "undefined") lucide.createIcons();
             }, 2000);
         }
     };

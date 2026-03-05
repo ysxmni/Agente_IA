@@ -13,6 +13,14 @@
 <body>
     <div class="app-container">
 
+        <!-- Overlay escuro atrás do sidebar em mobile -->
+        <div class="sidebar-overlay" id="sidebarOverlay" onclick="fecharSidebar()"></div>
+
+        <!-- Botão hamburguer (só aparece em mobile) -->
+        <button class="btn-menu-toggle" id="btnMenuToggle" onclick="abrirSidebar()" aria-label="Abrir menu">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+        </button>
+
         <!-- Sidebar gerada pelo sidebar.js -->
         <aside id="sidebar-container" class="sidebar"></aside>
 
@@ -99,7 +107,6 @@
                             </div>
 
                             <div class="chat-input-area">
-                                <!-- SEM form — input e botão diretos, sem risco de submit nativo -->
                                 <div id="formChat" class="input-container">
                                     <input
                                         type="text"
@@ -154,6 +161,7 @@
                     <div id="searchResultCount" class="search-result-count hidden"></div>
                 </div>
 
+                <div id="seletorPerspectiva"></div>
                 <div id="listaContratos" class="history-grid"></div>
             </div><!-- /#abaHistorico -->
 
@@ -221,6 +229,33 @@
     <script src="auth.js"></script>
     <script src="sidebar.js"></script>
     <script src="script.js"></script>
-    <script>lucide.createIcons();</script>
+    <script>
+        lucide.createIcons();
+
+        // ── SIDEBAR MOBILE ──────────────────────────────────────
+        function abrirSidebar() {
+            document.getElementById('sidebar-container').classList.add('open');
+            document.getElementById('sidebarOverlay').classList.add('active');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function fecharSidebar() {
+            document.getElementById('sidebar-container').classList.remove('open');
+            document.getElementById('sidebarOverlay').classList.remove('active');
+            document.body.style.overflow = '';
+        }
+
+        // Fecha sidebar ao clicar em item de menu (mobile)
+        document.getElementById('sidebar-container').addEventListener('click', function(e) {
+            if (window.innerWidth <= 768 && e.target.closest('.nav-item')) {
+                fecharSidebar();
+            }
+        });
+
+        // Fecha com ESC
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') fecharSidebar();
+        });
+    </script>
 </body>
 </html>

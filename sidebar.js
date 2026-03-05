@@ -1,42 +1,54 @@
 // ════════════════════════════════════════════════════════════
-//  SIDEBAR.JS — Opersan
-//  Correções:
-//  · Recebe isAdmin pré-calculado (sem re-derivar)
-//  · username já chega formatado de script.js (usuario.nome)
-//  · _criarIcones() via requestAnimationFrame elimina flash
-//    de ícones sem SVG no primeiro render
+//  SIDEBAR.JS — Opersan (SVGs inline, zero flash/delay)
 // ════════════════════════════════════════════════════════════
+
+const SIDEBAR_ICONS = {
+    "file-text": `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14,2 14,8 20,8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10,9 9,9 8,9"/></svg>`,
+    "layout-dashboard": `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>`,
+    "library": `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>`,
+    "user-star": `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`,
+    "log-out": `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16,17 21,12 16,7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>`,
+};
+
+function sidebarIcon(name) {
+    return SIDEBAR_ICONS[name] || `<svg width="18" height="18"/>`;
+}
 
 function renderizarSidebar(userData) {
     const container = document.getElementById('sidebar-container');
     if (!container) return;
 
-    // Aceita isAdmin pré-calculado; faz fallback se necessário
-    const isAdmin = userData.isAdmin
-        ?? (userData.role?.toLowerCase() === 'admin'
-            || userData.roles?.some(r => r.name?.toLowerCase() === 'admin')
-            || false);
+    let isAdmin = false;
+    if (userData.role?.toLowerCase() === 'admin') isAdmin = true;
+    if (userData.roles?.some(r => r.name?.toLowerCase() === 'admin')) isAdmin = true;
 
-    // username já chega formatado de script.js (usuario.nome)
-    const userName = userData.username || 'Usuário';
-    const userRole = userData.role     || 'Usuário';
+    let menuItems = `
+        <button id="tabNovaAnalise" class="nav-item active" onclick="trocarAba('nova')">
+            ${sidebarIcon('layout-dashboard')} Painel de Análise
+        </button>
+        <button id="tabHistorico" class="nav-item" onclick="trocarAba('historico')">
+            ${sidebarIcon('library')} Biblioteca
+        </button>
+    `;
+
+    if (isAdmin) {
+        menuItems += `
+            <button id="tabAdmin" class="nav-item" onclick="window.location.href='admin.html'">
+                ${sidebarIcon('user-star')} Admin
+            </button>
+        `;
+    }
+
+    const userName = userData.username || localStorage.getItem('userName') || 'Usuário';
+    const userRole = userData.role || localStorage.getItem('userRole') || 'Usuário';
 
     container.innerHTML = `
         <div class="logo">
-            <div class="logo-icon"><i data-lucide="file-text"></i></div>
+            <div class="logo-icon">${sidebarIcon('file-text')}</div>
             <h1>Opersan</h1>
         </div>
         <nav class="nav-menu">
-            <button id="tabNovaAnalise" class="nav-item active" onclick="trocarAba('nova')">
-                <i data-lucide="layout-dashboard"></i> Painel de Análise
-            </button>
-            <button id="tabHistorico" class="nav-item" onclick="trocarAba('historico')">
-                <i data-lucide="library"></i> Biblioteca
-            </button>
-            ${isAdmin ? `
-            <button id="tabAdmin" class="nav-item" onclick="window.location.href='admin.html'">
-                <i data-lucide="user-star"></i> Admin
-            </button>` : ''}
+            ${menuItems}
         </nav>
         <div class="sidebar-footer">
             <div class="user-profile">
@@ -47,20 +59,9 @@ function renderizarSidebar(userData) {
                 </div>
             </div>
             <button onclick="fazerLogout()" class="btn-logout">
-                <i data-lucide="log-out"></i> Sair
+                ${sidebarIcon('log-out')} Sair
             </button>
         </div>
     `;
-
-    // rAF garante que o browser já inseriu o HTML no layout antes de processar
-    // os ícones, eliminando o flash de [data-lucide] sem SVG
-    _criarIcones();
-}
-
-// ─── helper centralizado ──────────────────────────────────────────────────────
-// Definido aqui e também em script.js como fallback.
-// Todos os módulos chamam _criarIcones() em vez de lucide.createIcons() direto.
-function _criarIcones() {
-    if (typeof lucide === 'undefined') return;
-    requestAnimationFrame(() => lucide.createIcons());
+    // Sem lucide.createIcons() — SVGs já estão prontos no HTML
 }

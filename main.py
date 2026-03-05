@@ -20,6 +20,20 @@ from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 
 from google import genai
 
+from dotenv import load_dotenv
+import os
+
+# ════════════════════════════════════════════════════════════
+# VARIÁVEIS DE AMBIENTE
+# ════════════════════════════════════════════════════════════
+
+load_dotenv()
+
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+DATABASE_URL   = os.getenv("DATABASE_URL", "sqlite:///contratos_v2.db")
+HOST           = os.getenv("HOST", "0.0.0.0")
+PORT           = int(os.getenv("PORT", 8000))
+
 # ════════════════════════════════════════════════════════════
 # CONFIGURAÇÃO DE LOGGING
 # ════════════════════════════════════════════════════════════
@@ -50,23 +64,23 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
+        "https://ysxmni.github.io",
         "http://127.0.0.1:5500",
         "http://localhost:5500",
         "http://127.0.0.1:5501",
         "http://localhost:5501",
         "http://127.0.0.1:8080",
         "http://localhost:8080",
-        "null",
     ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
 # ════════════════════════════════════════════════════════════
 # CONFIGURAÇÃO DA IA GEMINI
 # ════════════════════════════════════════════════════════════
-GEMINI_API_KEY = "AIzaSyBDONhvnvkDVNECcrnakHsg8WAwMNh_Wvk"
+if not GEMINI_API_KEY:
+    logger.error("❌ GEMINI_API_KEY não encontrada no .env!")
 
 try:
     client = genai.Client(api_key=GEMINI_API_KEY)
@@ -110,8 +124,16 @@ except Exception as e:
     MODELO_ATIVO = None
 
 # ════════════════════════════════════════════════════════════
-# PROMPTS ESPECIALIZADOS POR SETOR
+# PROMPTS ESPECIALIZADOS POR SETOR — VERSÃO CORRIGIDA
+#
+# REGRAS GLOBAIS APLICADAS EM TODOS OS PROMPTS:
+#   1. Extrair SOMENTE o que está escrito no contrato.
+#   2. Para cada dado informado, citar a cláusula/item/página de origem.
+#   3. Se a informação NÃO existir no contrato, escrever: "Não consta no contrato."
+#   4. NUNCA especular, inferir ou dizer "possivelmente" / "provavelmente".
+#   5. NUNCA remeter o leitor a um anexo sem antes transcrever o que o contrato diz.
 # ════════════════════════════════════════════════════════════
+
 PROMPTS_SETORES = {
     "juridico": {
         "nome": "Jurídico",
@@ -119,59 +141,86 @@ PROMPTS_SETORES = {
         "cor": "#3b82f6",
         "resumo": """Você é um assistente jurídico especializado em análise de contratos.
 
-FOCO PRINCIPAL: Análise legal, riscos jurídicos e conformidade contratual.
+════════════════════════════════════════════
+REGRAS ABSOLUTAS — LEIA ANTES DE COMEÇAR
+════════════════════════════════════════════
+1. Extraia SOMENTE informações que estejam literalmente escritas no contrato abaixo.
+2. Após cada informação, indique entre colchetes a origem exata: [Cláusula X], [Item Y.Z], [Preâmbulo], [Cabeçalho], etc.
+3. Se uma informação NÃO estiver no contrato, escreva: "Não consta no contrato."
+4. NUNCA use palavras como "provavelmente", "possivelmente", "deve estar" ou "conforme anexo" sem transcrever o que o contrato diz.
+5. Se o contrato mencionar um anexo, transcreva o trecho exato que o menciona e explique o que está dito ali mesmo — não remeta o leitor ao anexo como única resposta.
 
-ESTRUTURA OBRIGATÓRIA DO RESUMO:
+════════════════════════════════════════════
+ESTRUTURA OBRIGATÓRIA DO RESUMO
+════════════════════════════════════════════
 
-════════════════════════════════════════════════════════════
 ANÁLISE JURÍDICA DO CONTRATO
-════════════════════════════════════════════════════════════
+════════════════════════════════════════════
 
 1. QUALIFICAÇÃO JURÍDICA DO CONTRATO
-   - Natureza jurídica: [tipo de contrato sob perspectiva legal]
-   - Legislação aplicável: [leis, códigos e normas relevantes]
-   - Jurisdição: [competência territorial]
+   - Natureza jurídica: [extraia do objeto do contrato + cite cláusula]
+   - Legislação mencionada: [liste todas as leis/normas citadas no texto + cite onde aparecem]
+   - Foro/Jurisdição: [transcreva a cláusula de foro, ou "Não consta no contrato."]
 
 2. PARTES CONTRATANTES
-   Qualificação Completa:
-   - Contratante: [nome, CNPJ/CPF, endereço, representante legal]
-   - Contratado: [nome, CNPJ/CPF, endereço, representante legal]
+   - Contratante: [nome completo, CNPJ, endereço e representante legal, conforme escrito no contrato + cite a seção]
+   - Contratado: [nome completo, CNPJ, endereço e representante legal, conforme escrito no contrato + cite a seção]
 
-3. OBJETO CONTRATUAL E CAUSA
-   - Descrição legal do objeto
-   - Licitude e possibilidade jurídica
-   - Determinação ou determinabilidade
+3. OBJETO CONTRATUAL
+   - Descrição completa: [transcreva ou resuma fielmente o objeto, citando a cláusula]
+   - Restrições/condicionantes: [liste qualquer limitação descrita + cite cláusula]
 
-4. CLÁUSULAS ESSENCIAIS
-   OBRIGAÇÕES PRINCIPAIS:
-   - Do Contratante: [listar com fundamentação legal]
-   - Do Contratado: [listar com fundamentação legal]
+4. OBRIGAÇÕES PRINCIPAIS
+   Do Contratante (cite cada obrigação com sua cláusula):
+   - [Obrigação 1] [Cláusula X]
+   - [Obrigação 2] [Cláusula Y]
+   ...
+   Do Contratado (cite cada obrigação com sua cláusula):
+   - [Obrigação 1] [Cláusula X]
+   - [Obrigação 2] [Cláusula Y]
+   ...
 
-5. RISCOS JURÍDICOS IDENTIFICADOS
-   ALTO RISCO:
-   - [Listar riscos críticos que podem gerar litígio]
-   
-   MÉDIO RISCO:
-   - [Listar riscos moderados]
+5. PRAZOS E VIGÊNCIA
+   - Vigência do contrato: [transcreva + cite cláusula, ou "Não consta no contrato."]
+   - Prazo de mobilização: [transcreva + cite cláusula, ou "Não consta no contrato."]
+   - Outros prazos relevantes: [liste + cite cada cláusula]
 
-6. RECOMENDAÇÕES JURÍDICAS
-   - Ajustes contratuais sugeridos
-   - Documentação complementar necessária
+6. PENALIDADES E RESCISÃO
+   - Multas/penalidades: [transcreva os valores/percentuais + cite cláusula, ou "Não consta no contrato."]
+   - Hipóteses de rescisão: [liste + cite cláusula, ou "Não consta no contrato."]
 
-════════════════════════════════════════════════════════════
+7. RISCOS JURÍDICOS IDENTIFICADOS
+   Para cada risco, indique:
+   - Descrição do risco
+   - Trecho do contrato que o origina [Cláusula X]
+   - Nível: ALTO / MÉDIO / BAIXO
+
+8. PONTOS SEM INFORMAÇÃO NO CONTRATO
+   Liste aqui todos os campos que não foram encontrados no texto analisado.
+
+════════════════════════════════════════════
 
 CONTRATO A ANALISAR:
 {texto}""",
 
         "perguntas": """Você é um assistente jurídico especializado em contratos.
 
-CONTEXTO DO CONTRATO:
+════════════════════════════════════════════
+REGRAS ABSOLUTAS
+════════════════════════════════════════════
+1. Responda SOMENTE com base no texto do contrato fornecido abaixo.
+2. Para cada informação que você der, cite exatamente de onde ela vem: [Cláusula X] ou [Item Y.Z].
+3. Se a resposta NÃO estiver no contrato, diga claramente: "Essa informação não consta no contrato analisado."
+4. NUNCA especule, suponha ou diga "provavelmente". Seja direto.
+5. Use linguagem simples e objetiva para que qualquer pessoa entenda.
+
+CONTRATO:
 {contexto}
 
-PERGUNTA DO USUÁRIO:
+PERGUNTA:
 {pergunta}
 
-Responda de forma clara, objetiva e fundamentada juridicamente."""
+Responda de forma direta, citando a cláusula exata de onde cada informação foi extraída."""
     },
 
     "suprimentos": {
@@ -180,63 +229,86 @@ Responda de forma clara, objetiva e fundamentada juridicamente."""
         "cor": "#10b981",
         "resumo": """Você é um especialista em gestão de suprimentos e compras.
 
-FOCO PRINCIPAL: Análise comercial, condições de fornecimento e logística.
+════════════════════════════════════════════
+REGRAS ABSOLUTAS — LEIA ANTES DE COMEÇAR
+════════════════════════════════════════════
+1. Extraia SOMENTE informações que estejam literalmente escritas no contrato abaixo.
+2. Após cada informação, indique entre colchetes a origem exata: [Cláusula X], [Item Y.Z], [Cabeçalho], etc.
+3. Se uma informação NÃO estiver no contrato, escreva: "Não consta no contrato."
+4. NUNCA use palavras como "provavelmente", "possivelmente", "deve estar nos anexos" sem antes transcrever o que está escrito.
+5. Se o contrato mencionar valores em anexos, transcreva o trecho exato que faz essa menção.
+6. Use linguagem simples, clara e direta — evite jargões técnicos desnecessários.
 
-ESTRUTURA OBRIGATÓRIA DO RESUMO:
+════════════════════════════════════════════
+ESTRUTURA OBRIGATÓRIA DO RESUMO
+════════════════════════════════════════════
 
-════════════════════════════════════════════════════════════
 ANÁLISE DE SUPRIMENTOS E COMPRAS
-════════════════════════════════════════════════════════════
+════════════════════════════════════════════
 
 1. INFORMAÇÕES DO FORNECEDOR
-   - Razão Social: [nome completo]
-   - CNPJ: [número]
-   - Contato Comercial: [telefone/email]
+   - Razão Social: [nome completo conforme contrato + cite seção]
+   - CNPJ(s): [número(s) conforme contrato + cite seção]
+   - Endereço: [conforme contrato + cite seção, ou "Não consta no contrato."]
+   - Contato Comercial (nome, e-mail, telefone): [conforme contrato + cite seção, ou "Não consta no contrato."]
 
 2. ESPECIFICAÇÃO DO FORNECIMENTO
-   PRODUTOS/SERVIÇOS:
-   - Descrição detalhada: [especificações técnicas]
-   - Quantidade: [unidades/volume]
-   - Qualidade/Normas: [padrões, certificações]
+   Para CADA produto ou serviço mencionado no contrato, liste:
+   - Descrição: [transcreva ou resuma fielmente] [cite cláusula]
+   - Quantidade/Volume: [conforme contrato + cite cláusula, ou "Não consta no contrato."]
+   - Padrões de qualidade/normas exigidas: [conforme contrato + cite cláusula, ou "Não consta no contrato."]
 
 3. CONDIÇÕES COMERCIAIS
-   VALORES:
-   - Preço Unitário: R$ [valor]
-   - Valor Total: R$ [total]
-   - Frete: [CIF/FOB - R$ valor]
-   
-   CONDIÇÕES DE PAGAMENTO:
-   - Forma: [à vista, parcelado, faturado]
-   - Prazo: [30/60/90 dias]
+   - Preço unitário: [valor exato conforme contrato + cite cláusula, ou "Não consta no contrato."]
+   - Valor total: [valor exato conforme contrato + cite cláusula, ou "Não consta no contrato."]
+   - Frete (CIF/FOB): [conforme contrato + cite cláusula, ou "Não consta no contrato."]
+   - Forma de pagamento: [conforme contrato + cite cláusula, ou "Não consta no contrato."]
+   - Prazo de pagamento: [conforme contrato + cite cláusula, ou "Não consta no contrato."]
+   - Política de reajuste: [conforme contrato + cite cláusula, ou "Não consta no contrato."]
 
 4. LOGÍSTICA E ENTREGA
-   - Lead time: [dias úteis]
-   - Prazo de entrega: [data específica]
-   - Local de entrega: [endereço]
+   - Lead time / Prazo de mobilização: [transcreva + cite cláusula, ou "Não consta no contrato."]
+   - Prazo de implantação: [transcreva + cite cláusula, ou "Não consta no contrato."]
+   - Local de entrega/execução: [endereço completo conforme contrato + cite cláusula, ou "Não consta no contrato."]
+   - Responsabilidade pelo transporte: [conforme contrato + cite cláusula, ou "Não consta no contrato."]
 
 5. GARANTIAS E QUALIDADE
-   - Prazo de garantia: [meses]
-   - Certificações exigidas: [ISO, INMETRO, etc]
+   - Prazo de garantia: [transcreva + cite cláusula, ou "Não consta no contrato."]
+   - Escopo da garantia: [o que está coberto conforme contrato + cite cláusula, ou "Não consta no contrato."]
+   - Certificações exigidas: [liste + cite cláusula, ou "Não consta no contrato."]
 
 6. RISCOS DE SUPRIMENTOS
-   - Riscos de entrega
-   - Riscos de qualidade
-   - Riscos de preço/reajuste
+   Para cada risco identificado, informe:
+   - Descrição do risco
+   - Trecho do contrato que o origina [Cláusula X]
+   - Possível impacto operacional/financeiro
 
-════════════════════════════════════════════════════════════
+7. PONTOS SEM INFORMAÇÃO NO CONTRATO
+   Liste aqui todos os campos que não foram encontrados no texto analisado.
+
+════════════════════════════════════════════
 
 CONTRATO A ANALISAR:
 {texto}""",
 
         "perguntas": """Você é um especialista em compras e gestão de suprimentos.
 
-CONTEXTO DO CONTRATO:
+════════════════════════════════════════════
+REGRAS ABSOLUTAS
+════════════════════════════════════════════
+1. Responda SOMENTE com base no texto do contrato fornecido abaixo.
+2. Para cada informação que você der, cite exatamente de onde ela vem: [Cláusula X] ou [Item Y.Z].
+3. Se a resposta NÃO estiver no contrato, diga claramente: "Essa informação não consta no contrato analisado."
+4. NUNCA especule, suponha ou diga "provavelmente". Seja direto.
+5. Use linguagem simples e objetiva — explique como se fosse para alguém sem conhecimento técnico.
+
+CONTRATO:
 {contexto}
 
-PERGUNTA DO USUÁRIO:
+PERGUNTA:
 {pergunta}
 
-Responda focando em aspectos comerciais, logísticos e de qualidade."""
+Responda de forma direta, citando a cláusula ou item exato de onde cada informação foi extraída."""
     },
 
     "gestaocontratos": {
@@ -244,69 +316,101 @@ Responda focando em aspectos comerciais, logísticos e de qualidade."""
         "icon": "folder-kanban",
         "cor": "#f59e0b",
         "resumo": """Você é um especialista em gestão operacional de contratos.
-        
-FOCO PRINCIPAL: Gestão operacional prática, com foco em evitar glosas e penalidades.
 
-ESTRUTURA OBRIGATÓRIA DO RESUMO:
+════════════════════════════════════════════
+REGRAS ABSOLUTAS — LEIA ANTES DE COMEÇAR
+════════════════════════════════════════════
+1. Extraia SOMENTE informações que estejam literalmente escritas no contrato abaixo.
+2. Após cada informação, indique entre colchetes a origem exata: [Cláusula X], [Item Y.Z], [Alínea 'a'], etc.
+3. Se uma informação NÃO estiver no contrato, escreva: "Não consta no contrato."
+4. NUNCA use palavras como "provavelmente", "possivelmente" ou "conforme anexo" sem antes transcrever o que está dito.
+5. Use linguagem clara e objetiva — o objetivo é que o gestor operacional saiba exatamente o que fazer e o que evitar.
 
-════════════════════════════════════════════════════════════
+════════════════════════════════════════════
+ESTRUTURA OBRIGATÓRIA DO RESUMO
+════════════════════════════════════════════
+
 ANÁLISE DE GESTÃO OPERACIONAL
-════════════════════════════════════════════════════════════
+════════════════════════════════════════════
 
 1. RESUMO DO ESCOPO OPERACIONAL
-   - Atividades principais: [o que deve ser feito]
-   - Local de execução: [onde]
-   - Horário de atendimento: [quando]
+   Liste cada atividade prevista no contrato:
+   - [Atividade] [cite cláusula/item]
+   Local de execução: [endereço completo conforme contrato + cite cláusula, ou "Não consta no contrato."]
+   Horário de atendimento: [conforme contrato + cite cláusula, ou "Não consta no contrato."]
 
 2. MÃO DE OBRA E EQUIPE
-   - Quantitativo exigido: [número de pessoas]
-   - Qualificação necessária: [cursos, NR's, etc]
-   - Uniformes e EPIs: [exigências]
+   - Quantitativo exigido: [número de pessoas conforme contrato + cite cláusula, ou "Não consta no contrato."]
+   - Qualificações obrigatórias (cursos, NRs, habilitações): [liste + cite cláusula, ou "Não consta no contrato."]
+   - Uniformes: [conforme contrato + cite cláusula, ou "Não consta no contrato."]
+   - EPIs obrigatórios: [conforme contrato + cite cláusula, ou "Não consta no contrato."]
+   - Benefícios exigidos (refeição, transporte, etc.): [conforme contrato + cite cláusula, ou "Não consta no contrato."]
 
-3. MATERIAIS E EQUIPAMENTOS
-   - Lista de equipamentos obrigatórios
-   - Insumos/Produtos: [especificações]
-   - Responsabilidade por manutenção
+3. MATERIAIS, INSUMOS E EQUIPAMENTOS
+   Liste cada item mencionado no contrato:
+   - [Item/equipamento] — responsável pelo fornecimento: [contratante/contratada] [cite cláusula]
+   Responsabilidade por manutenção: [conforme contrato + cite cláusula, ou "Não consta no contrato."]
 
-4. NÍVEIS DE SERVIÇO (SLA)
-   - Tempo de resposta: [horas/minutos]
-   - Frequência de execução: [diária/semanal]
-   - Indicadores de desempenho: [KPIs]
+4. NÍVEIS DE SERVIÇO (SLA) E FREQUÊNCIAS
+   - Frequência de execução de cada atividade: [conforme contrato + cite cláusula, ou "Não consta no contrato."]
+   - Tempo de resposta/atendimento: [conforme contrato + cite cláusula, ou "Não consta no contrato."]
+   - Relatórios e documentação obrigatórios: [liste + cite cláusula, ou "Não consta no contrato."]
+   - Indicadores de desempenho (KPIs): [conforme contrato + cite cláusula, ou "Não consta no contrato."]
 
-5. PENALIDADES OPERACIONAIS E GLOSAS
-   - Hipóteses de glosa: [o que gera desconto]
-   - Valores/Percentuais: [% de multa]
-   - Reincidência: [consequências]
+5. PENALIDADES, GLOSAS E MULTAS
+   Para cada penalidade mencionada no contrato:
+   - Hipótese: [o que gera a penalidade] [cite cláusula]
+   - Valor ou percentual: [conforme contrato, ou "Não consta no contrato."]
+   - Consequência de reincidência: [conforme contrato + cite cláusula, ou "Não consta no contrato."]
 
 6. CRONOGRAMA E PRAZOS
-   - Início da execução: [data]
-   - Vigência: [meses/anos]
-   - Marcos importantes: [datas críticas]
+   - Data de início da execução: [conforme contrato + cite cláusula, ou "Não consta no contrato."]
+   - Prazo de mobilização: [transcreva + cite cláusula, ou "Não consta no contrato."]
+   - Vigência total do contrato: [conforme contrato + cite cláusula, ou "Não consta no contrato."]
+   - Marcos e prazos intermediários: [liste + cite cada cláusula]
 
-════════════════════════════════════════════════════════════
+7. RESPONSABILIDADES ESPECIAIS E VEDAÇÕES
+   - O que a contratada NÃO pode fazer: [conforme contrato + cite cláusula, ou "Não consta no contrato."]
+   - Obrigações de sigilo/confidencialidade: [conforme contrato + cite cláusula, ou "Não consta no contrato."]
+   - Outras responsabilidades específicas: [conforme contrato + cite cláusula]
+
+8. PONTOS SEM INFORMAÇÃO NO CONTRATO
+   Liste aqui todos os campos que não foram encontrados no texto analisado.
+
+════════════════════════════════════════════
 
 CONTRATO A ANALISAR:
 {texto}""",
 
         "perguntas": """Você é um especialista em gestão operacional de contratos.
 
-CONTEXTO DO CONTRATO:
+════════════════════════════════════════════
+REGRAS ABSOLUTAS
+════════════════════════════════════════════
+1. Responda SOMENTE com base no texto do contrato fornecido abaixo.
+2. Para cada informação que você der, cite exatamente de onde ela vem: [Cláusula X], [Item Y.Z] ou [Alínea 'a'].
+3. Se a resposta NÃO estiver no contrato, diga claramente: "Essa informação não consta no contrato analisado."
+4. NUNCA especule, suponha ou diga "provavelmente". Seja direto.
+5. Use linguagem simples e prática — o gestor precisa saber exatamente o que fazer.
+
+CONTRATO:
 {contexto}
 
-PERGUNTA DO USUÁRIO:
+PERGUNTA:
 {pergunta}
 
-Responda focando em aspectos operacionais práticos, SLAs, penalidades e gestão do dia a dia."""
+Responda de forma direta e prática, citando a cláusula ou item exato de onde cada informação foi extraída."""
     }
 }
-
 # ════════════════════════════════════════════════════════════
 # CONFIGURAÇÃO DO BANCO DE DADOS
 # ════════════════════════════════════════════════════════════
-DATABASE_URL = "sqlite:///contratos_v2.db"
 Base          = declarative_base()
 pwd_context   = CryptContext(schemes=["bcrypt"], deprecated="auto")
-engine        = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
+if DATABASE_URL.startswith("sqlite"):
+    engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
+else:
+    engine = create_engine(DATABASE_URL)  # PostgreSQL não precisa desse argumento
 SessionLocal  = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 # ════════════════════════════════════════════════════════════
@@ -451,8 +555,9 @@ Base.metadata.create_all(bind=engine)
 logger.info("✅ Tabelas do banco de dados criadas/verificadas")
 
 def migrar_banco():
+    db_path = DATABASE_URL.replace("sqlite:///", "")
     try:
-        conn = sqlite3.connect("contratos_v2.db")
+        conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
 
         # Migração: coluna description em roles
@@ -868,10 +973,6 @@ async def listar_todas_permissoes(
     db:    Session = Depends(get_db),
     admin: User    = Depends(get_current_admin_user)
 ):
-    """
-    Retorna todas as permissões de visibilidade agrupadas por viewer.
-    Inclui permissões por usuário (perm_type='user') e por setor (perm_type='sector').
-    """
     todos_users = db.query(User).all()
     user_map    = {u.id: u for u in todos_users}
     perms       = db.query(UserVisibilityPermission).all()
@@ -931,7 +1032,6 @@ async def listar_permissoes_viewer(
     db:        Session = Depends(get_db),
     admin:     User    = Depends(get_current_admin_user)
 ):
-    """Retorna permissões por usuário e por setor de um viewer específico."""
     viewer = db.query(User).filter(User.id == viewer_id).first()
     if not viewer:
         raise HTTPException(status_code=404, detail="Usuário não encontrado")
@@ -972,17 +1072,10 @@ async def definir_permissoes_viewer(
     db:        Session = Depends(get_db),
     admin:     User    = Depends(get_current_admin_user)
 ):
-    """
-    Define (substitui) as permissões de um viewer:
-    - target_ids   → IDs de usuários individuais cujos contratos ele pode ver
-    - sector_slugs → slugs de setores cujos contratos (todos) ele pode ver,
-                     incluindo o nome de quem analisou cada contrato
-    """
     viewer = db.query(User).filter(User.id == viewer_id).first()
     if not viewer:
         raise HTTPException(status_code=404, detail="Usuário viewer não encontrado")
 
-    # Valida targets
     if body.target_ids:
         targets_existentes = db.query(User).filter(User.id.in_(body.target_ids)).all()
         ids_existentes     = {t.id for t in targets_existentes}
@@ -990,22 +1083,19 @@ async def definir_permissoes_viewer(
         if invalidos:
             raise HTTPException(status_code=400, detail=f"Usuários não encontrados: {list(invalidos)}")
 
-    # Valida slugs de setor
     slugs_validos = set(PROMPTS_SETORES.keys())
     if body.sector_slugs:
         invalidos_setor = set(body.sector_slugs) - slugs_validos
         if invalidos_setor:
             raise HTTPException(status_code=400, detail=f"Setores inválidos: {list(invalidos_setor)}")
 
-    # Remove todas as permissões antigas
     db.query(UserVisibilityPermission).filter(
         UserVisibilityPermission.viewer_id == viewer_id
     ).delete(synchronize_session=False)
 
-    # Cria permissões de usuário individual
     for target_id in set(body.target_ids):
         if target_id == viewer_id:
-            continue  # desnecessário: usuário sempre vê os próprios contratos
+            continue
         db.add(UserVisibilityPermission(
             viewer_id   = viewer_id,
             target_id   = target_id,
@@ -1013,7 +1103,6 @@ async def definir_permissoes_viewer(
             sector_slug = None
         ))
 
-    # Cria permissões de setor
     for slug in set(body.sector_slugs):
         if slug in slugs_validos:
             db.add(UserVisibilityPermission(
@@ -1060,11 +1149,6 @@ async def minhas_permissoes_visibilidade(
     db:           Session = Depends(get_db),
     current_user: User    = Depends(get_current_user)
 ):
-    """
-    Retorna:
-    - can_see   → usuários individuais cujos contratos o viewer pode ver
-    - sectors   → slugs de setores cujos contratos (todos) o viewer pode ver
-    """
     perms = db.query(UserVisibilityPermission).filter(
         UserVisibilityPermission.viewer_id == current_user.id
     ).all()
@@ -1155,25 +1239,9 @@ async def listar_contratos(
     db:           Session       = Depends(get_db),
     current_user: User          = Depends(get_current_user)
 ):
-    """
-    Lista contratos com controle de visibilidade completo:
-
-    Admin: vê todos sem restrição.
-
-    Usuário comum:
-      - Sempre vê os próprios contratos.
-      - Permissão por usuário  (perm_type='user'):
-          Vê todos os contratos do usuário liberado, incluindo
-          o badge com o nome de quem analisou.
-      - Permissão por setor (perm_type='sector'):
-          Vê todos os contratos daquele setor (de qualquer analista),
-          sempre exibindo o nome do analista em cada card.
-      - Sem nenhuma permissão configurada: vê apenas os próprios.
-    """
     admin        = is_admin_user(current_user)
     meus_setores = get_setores_permitidos(current_user)
 
-    # ── Admin: acesso irrestrito ──────────────────────────────────────────
     if admin:
         query = db.query(Contract)
         if sector_id and sector_id in PROMPTS_SETORES:
@@ -1182,13 +1250,11 @@ async def listar_contratos(
             query = query.filter(Contract.user_id == analyst_id)
         contratos = query.order_by(Contract.created_at.desc()).all()
 
-    # ── Usuário comum ─────────────────────────────────────────────────────
     else:
         perms = db.query(UserVisibilityPermission).filter(
             UserVisibilityPermission.viewer_id == current_user.id
         ).all()
 
-        # Divide as permissões em dois grupos
         target_ids_por_usuario = set()
         slugs_por_setor        = set()
 
@@ -1198,10 +1264,8 @@ async def listar_contratos(
             elif p.perm_type == "sector" and p.sector_slug:
                 slugs_por_setor.add(p.sector_slug)
 
-        # Se analyst_id solicitado: validação de acesso
         if analyst_id:
             if analyst_id != current_user.id and analyst_id not in target_ids_por_usuario:
-                # Checa se há permissão por setor que cubra o analista
                 analista_obj = db.query(User).filter(User.id == analyst_id).first()
                 if analista_obj:
                     setores_analista = get_setores_permitidos(analista_obj)
@@ -1220,13 +1284,10 @@ async def listar_contratos(
             contratos = query.order_by(Contract.created_at.desc()).all()
 
         else:
-            # Contratos próprios + por usuário liberado (intersecta com setores do viewer)
             ids_usuario = target_ids_por_usuario | {current_user.id}
 
             conditions = []
 
-            # 1) Contratos de usuários individualmente liberados (ou próprios):
-            #    filtra pelos setores que o viewer tem acesso
             if ids_usuario:
                 conditions.append(
                     and_(
@@ -1235,8 +1296,6 @@ async def listar_contratos(
                     )
                 )
 
-            # 2) Contratos por setor: qualquer analista no setor liberado,
-            #    SEM restringir a meus_setores (o setor foi liberado explicitamente)
             for slug in slugs_por_setor:
                 conditions.append(Contract.setor == slug)
 
@@ -1248,7 +1307,6 @@ async def listar_contratos(
                     query = query.filter(Contract.setor == sector_id)
                 contratos = query.order_by(Contract.created_at.desc()).all()
 
-    # ── Enriquece com dados do analista ───────────────────────────────────
     user_ids  = list({c.user_id for c in contratos if c.user_id})
     users_map = {u.id: u for u in db.query(User).filter(User.id.in_(user_ids)).all()}
 
@@ -1266,12 +1324,7 @@ async def listar_contratos(
         else:
             analista_obj = {"id": None, "nome": "Desconhecido", "iniciais": "??", "cor": "#475569"}
 
-        is_mine = (c.user_id == current_user.id)
-
-        # show_analyst: exibe o badge com o nome do analista quando o contrato
-        # não pertence ao usuário logado (veio por permissão de usuário ou setor),
-        # ou quando é admin visualizando todos os contratos.
-        # Contratos próprios nunca mostram o badge (o usuário sabe que são seus).
+        is_mine      = (c.user_id == current_user.id)
         show_analyst = admin or (not is_mine)
 
         result.append({
@@ -1300,14 +1353,12 @@ async def obter_contrato(
 
     admin = is_admin_user(current_user)
     if not admin and contrato.user_id != current_user.id:
-        # Verifica permissão por usuário
         perm_user = db.query(UserVisibilityPermission).filter(
             UserVisibilityPermission.viewer_id == current_user.id,
             UserVisibilityPermission.target_id == contrato.user_id,
             UserVisibilityPermission.perm_type == "user"
         ).first()
 
-        # Verifica permissão por setor
         perm_setor = db.query(UserVisibilityPermission).filter(
             UserVisibilityPermission.viewer_id == current_user.id,
             UserVisibilityPermission.perm_type == "sector",
@@ -1321,7 +1372,6 @@ async def obter_contrato(
         Message.contrato_id == contrato_id
     ).order_by(Message.created_at).all()
 
-    # Busca dados do analista
     analista_user = db.query(User).filter(User.id == contrato.user_id).first()
     analista_obj  = None
     if analista_user:
@@ -1474,4 +1524,4 @@ if __name__ == "__main__":
     logger.info("=" * 60)
     logger.info("🚀 INICIANDO SERVIDOR - Sistema Opersan v3.0")
     logger.info("=" * 60)
-    uvicorn.run(app, host="127.0.0.1", port=8000)
+    uvicorn.run(app, host=HOST, port=PORT)

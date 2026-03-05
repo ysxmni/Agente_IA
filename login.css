@@ -1,16 +1,20 @@
+/* ══════════════════════════════════════════════════════════
+   LOGIN.CSS — Opersan
+   ══════════════════════════════════════════════════════════ */
+
 :root {
-    --bg-color: #0a1120;
-    --card-bg: #111a2e;
-    --input-bg: #1a253d;
-    --text-primary: #ffffff;
-    --text-secondary: #94a3b8;
-    --accent-blue: #3b82f6;
-    --btn-gradient: linear-gradient(90deg, #2563eb, #3b82f6);
-    --font-serif: 'Lora', serif;
-    --font-sans: 'Inter', sans-serif;
+    --bg-color:      #0a1120;
+    --card-bg:       #111a2e;
+    --input-bg:      #1a253d;
+    --text-primary:  #ffffff;
+    --text-secondary:#94a3b8;
+    --accent-blue:   #3b82f6;
+    --btn-gradient:  linear-gradient(90deg, #2563eb, #3b82f6);
+    --font-serif:    'Lora', serif;
+    --font-sans:     'Inter', sans-serif;
 }
 
-* {
+*, *::before, *::after {
     margin: 0;
     padding: 0;
     box-sizing: border-box;
@@ -27,7 +31,6 @@ body {
     overflow-x: hidden;
 }
 
-/* Background effect */
 body::before {
     content: '';
     position: absolute;
@@ -35,7 +38,7 @@ body::before {
     left: -10%;
     width: 40%;
     height: 40%;
-    background: radial-gradient(circle, rgba(37, 99, 235, 0.15) 0%, transparent 70%);
+    background: radial-gradient(circle, rgba(37,99,235,0.15) 0%, transparent 70%);
     z-index: -1;
 }
 
@@ -52,7 +55,8 @@ body::before {
     align-items: center;
 }
 
-/* Info Section */
+/* ── INFO SECTION ─────────────────────────────────────────── */
+
 .info-section {
     display: flex;
     flex-direction: column;
@@ -73,12 +77,14 @@ body::before {
     display: flex;
     align-items: center;
     justify-content: center;
+    flex-shrink: 0;
 }
 
-.logo-icon i {
+.logo-icon svg {
     width: 20px;
     height: 20px;
     color: white;
+    display: block;
 }
 
 .logo h1 {
@@ -111,8 +117,8 @@ body::before {
 }
 
 .stat-card {
-    background-color: rgba(26, 37, 61, 0.5);
-    border: 1px solid rgba(255, 255, 255, 0.05);
+    background-color: rgba(26,37,61,0.5);
+    border: 1px solid rgba(255,255,255,0.05);
     padding: 1.5rem;
     border-radius: 12px;
     flex: 1;
@@ -132,7 +138,8 @@ body::before {
     color: var(--text-secondary);
 }
 
-/* Login Section */
+/* ── LOGIN CARD ───────────────────────────────────────────── */
+
 .login-section {
     display: flex;
     justify-content: flex-end;
@@ -140,12 +147,13 @@ body::before {
 
 .login-card {
     background-color: var(--card-bg);
-    border: 1px solid rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255,255,255,0.05);
     padding: 3rem;
     border-radius: 16px;
     width: 100%;
     max-width: 420px;
-    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+    box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5);
+    animation: fadeIn 0.4s ease-out;
 }
 
 .login-card h3 {
@@ -160,6 +168,8 @@ body::before {
     margin-bottom: 2.5rem;
 }
 
+/* ── INPUTS ───────────────────────────────────────────────── */
+
 .input-group {
     margin-bottom: 1.5rem;
 }
@@ -169,38 +179,50 @@ body::before {
     font-size: 0.9rem;
     font-weight: 500;
     margin-bottom: 0.5rem;
+    color: var(--text-primary);
 }
 
 .input-wrapper {
-    position: relative;
     display: flex;
     align-items: center;
-}
-
-.input-wrapper i {
-    position: absolute;
-    left: 1rem;
-    width: 18px;
-    height: 18px;
-    color: var(--text-secondary);
-}
-
-.input-wrapper input {
-    width: 100%;
+    gap: 10px;
     background-color: var(--input-bg);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255,255,255,0.1);
     border-radius: 8px;
-    padding: 0.8rem 1rem 0.8rem 2.8rem;
-    color: white;
-    font-family: inherit;
-    font-size: 1rem;
+    padding: 0 14px;
     transition: border-color 0.2s;
 }
 
-.input-wrapper input:focus {
-    outline: none;
+.input-wrapper:focus-within {
     border-color: var(--accent-blue);
 }
+
+.input-wrapper svg {
+    flex-shrink: 0;
+    width: 18px;
+    height: 18px;
+    color: var(--text-secondary);
+    display: block;
+    pointer-events: none;
+}
+
+.input-wrapper input {
+    flex: 1;
+    min-width: 0;
+    background: transparent;
+    border: none;
+    outline: none;
+    padding: 12px 0;
+    color: var(--text-primary);
+    font-family: var(--font-sans);
+    font-size: 1rem;
+}
+
+.input-wrapper input::placeholder {
+    color: var(--text-secondary);
+}
+
+/* ── BOTÃO ────────────────────────────────────────────────── */
 
 .btn-submit {
     width: 100%;
@@ -211,6 +233,7 @@ body::before {
     padding: 1rem;
     font-size: 1rem;
     font-weight: 600;
+    font-family: var(--font-sans);
     cursor: pointer;
     display: flex;
     align-items: center;
@@ -220,58 +243,74 @@ body::before {
     transition: opacity 0.2s;
 }
 
-.btn-submit:hover {
-    opacity: 0.9;
-}
+.btn-submit:hover { opacity: 0.9; }
 
-.btn-submit i {
+.btn-submit svg {
     width: 18px;
     height: 18px;
+    flex-shrink: 0;
 }
 
-.footer-text {
+.btn-submit.btn-success {
+    background: #10b981 !important;
+    cursor: default;
+}
+
+/* ── SPINNER ──────────────────────────────────────────────── */
+
+.btn-spinner {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    border: 2px solid rgba(255,255,255,0.3);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    flex-shrink: 0;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── ERRO ─────────────────────────────────────────────────── */
+
+.login-error {
+    background: rgba(239,68,68,0.1);
+    border: 1px solid rgba(239,68,68,0.3);
+    color: #fca5a5;
+    border-radius: 8px;
+    padding: 0.65rem 0.9rem;
+    font-size: 0.82rem;
+    margin-bottom: 0.75rem;
     text-align: center;
-    margin-top: 2rem;
-    font-size: 0.9rem;
-    color: var(--text-secondary);
 }
 
-.footer-text a {
-    color: var(--text-secondary);
-    text-decoration: none;
-    font-weight: 500;
-}
+/* ── UTILITÁRIOS ──────────────────────────────────────────── */
 
-.footer-text a:hover {
-    text-decoration: underline;
-}
+.hidden { display: none !important; }
 
-/* Responsive */
-@media (max-width: 900px) {
-    .content {
-        grid-template-columns: 1fr;
-        gap: 3rem;
-    }
-    
-    .login-section {
-        justify-content: center;
-    }
-    
-    .hero-text h2 {
-        font-size: 2.5rem;
-    }
-}
-
-.hidden {
-    display: none !important;
-}
-
-/* Animação simples para troca de cards */
-.login-card {
-    animation: fadeIn 0.4s ease-out;
-}
+/* ── ANIMAÇÕES ────────────────────────────────────────────── */
 
 @keyframes fadeIn {
     from { opacity: 0; transform: translateY(10px); }
-    to { opacity: 1; transform: translateY(0); }
+    to   { opacity: 1; transform: translateY(0);    }
+}
+
+@keyframes shake {
+    0%,100% { transform: translateX(0);    }
+    15%     { transform: translateX(-8px); }
+    30%     { transform: translateX(7px);  }
+    45%     { transform: translateX(-6px); }
+    60%     { transform: translateX(5px);  }
+    75%     { transform: translateX(-3px); }
+    90%     { transform: translateX(2px);  }
+}
+
+.login-card.shake { animation: shake 0.45s ease; }
+
+/* ── RESPONSIVO ───────────────────────────────────────────── */
+
+@media (max-width: 900px) {
+    .content { grid-template-columns: 1fr; gap: 3rem; }
+    .login-section { justify-content: center; }
+    .hero-text h2 { font-size: 2.5rem; }
 }
