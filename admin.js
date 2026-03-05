@@ -89,7 +89,6 @@ function criarDropdownSetores(containerId, setores, selectedIds, onChange) {
     if (!container) return;
     container.innerHTML = "";
 
-    // Remove painel anterior do body se existir (evita duplicatas ao re-renderizar)
     const painelAnterior = document.getElementById(`panel-${containerId}`);
     if (painelAnterior) painelAnterior.remove();
 
@@ -103,7 +102,7 @@ function criarDropdownSetores(containerId, setores, selectedIds, onChange) {
     trigger.type      = "button";
     trigger.className = "badges-dropdown-trigger";
 
-    const triggerLeft  = document.createElement("div");
+    const triggerLeft = document.createElement("div");
     triggerLeft.className = "badges-dropdown-trigger-left";
 
     const triggerArrow = document.createElement("span");
@@ -113,31 +112,31 @@ function criarDropdownSetores(containerId, setores, selectedIds, onChange) {
     trigger.appendChild(triggerLeft);
     trigger.appendChild(triggerArrow);
 
-    // ── Painel — anexado ao <body> para escapar de overflow:hidden ────────────
+    // ── Painel anexado ao <body> ──────────────────────────────────────────────
     const panel = document.createElement("div");
-    panel.className = "badges-dropdown-panel";
-    panel.id        = `panel-${containerId}`;
+    panel.className      = "badges-dropdown-panel";
+    panel.id             = `panel-${containerId}`;
+    panel.style.position = "absolute";
+    panel.style.zIndex   = "9999";
     document.body.appendChild(panel);
 
-    // ── Posicionar painel alinhado ao trigger ─────────────────────────────────
+    // ── Posicionar painel ─────────────────────────────────────────────────────
     function posicionarPainel() {
         const rect        = trigger.getBoundingClientRect();
         const alturaPanel = panel.offsetHeight || 200;
         const espacoAbaixo = window.innerHeight - rect.bottom;
 
-        panel.style.left  = `${rect.left}px`;
+        panel.style.left  = `${rect.left + window.scrollX}px`;
         panel.style.width = `${rect.width}px`;
 
         if (espacoAbaixo < alturaPanel && rect.top > alturaPanel) {
-            // Abre para CIMA
-            panel.style.top = `${rect.top - alturaPanel - 4}px`;
+            panel.style.top = `${rect.top + window.scrollY - alturaPanel - 4}px`;
         } else {
-            // Abre para BAIXO (padrão)
-            panel.style.top = `${rect.bottom + 4}px`;
+            panel.style.top = `${rect.bottom + window.scrollY + 4}px`;
         }
     }
 
-    // ── Atualizar trigger com mini-badges selecionados ────────────────────────
+    // ── Atualizar trigger ─────────────────────────────────────────────────────
     function atualizarTrigger() {
         triggerLeft.innerHTML = "";
         const selecionados = setores.filter(r => selectedIds.includes(r.id));
@@ -156,7 +155,7 @@ function criarDropdownSetores(containerId, setores, selectedIds, onChange) {
         }
     }
 
-    // ── Renderizar itens do painel ────────────────────────────────────────────
+    // ── Renderizar itens ──────────────────────────────────────────────────────
     function renderizarItens() {
         panel.innerHTML = "";
         setores.forEach(role => {
@@ -193,14 +192,14 @@ function criarDropdownSetores(containerId, setores, selectedIds, onChange) {
         });
     }
 
-    // ── Toggle abrir/fechar ───────────────────────────────────────────────────
+    // ── Toggle ────────────────────────────────────────────────────────────────
     let isOpen = false;
 
     function abrirDropdown() {
         isOpen = true;
         panel.classList.add("open");
         trigger.classList.add("open");
-        posicionarPainel(); // posiciona após display:block para offsetHeight correto
+        posicionarPainel();
     }
 
     function fecharDropdown() {
@@ -214,11 +213,9 @@ function criarDropdownSetores(containerId, setores, selectedIds, onChange) {
         isOpen ? fecharDropdown() : abrirDropdown();
     });
 
-    // Reposiciona ao rolar ou redimensionar
     window.addEventListener("scroll", () => { if (isOpen) posicionarPainel(); }, true);
     window.addEventListener("resize", () => { if (isOpen) posicionarPainel(); });
 
-    // Fecha ao clicar fora
     document.addEventListener("click", e => {
         if (!container.contains(e.target) && !panel.contains(e.target)) fecharDropdown();
     });
@@ -231,13 +228,9 @@ function criarDropdownSetores(containerId, setores, selectedIds, onChange) {
     atualizarTrigger();
     renderizarItens();
     container.appendChild(trigger);
-    // OBS: panel foi appendado ao body acima, NÃO ao container
 
-    // ── API pública ───────────────────────────────────────────────────────────
     container._refresh = () => { renderizarItens(); atualizarTrigger(); };
     container._reset   = () => { selectedIds.length = 0; atualizarTrigger(); renderizarItens(); };
-
-    // ── Cleanup ao destruir (ex: fechar modal) ────────────────────────────────
     container._destroy = () => { fecharDropdown(); panel.remove(); };
 }
 
