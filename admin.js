@@ -66,36 +66,25 @@ function _metaSetor(nomeRole) {
 
 function _classeCorSetor(nome) {
     const slug = _slugSetor(nome);
-    if (slug.includes("juridic"))                        return "juridico";
-    if (slug.includes("suprimento"))                     return "suprimentos";
+    if (slug.includes("juridic"))                              return "juridico";
+    if (slug.includes("suprimento"))                           return "suprimentos";
     if (slug.includes("gestao") || slug.includes("contrato")) return "gestaocontratos";
     return "default";
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-//  DROPDOWN DE SETORES (substitui badges planos)
+//  HELPER INTERNO: cria a estrutura base de um dropdown (trigger + painel)
+//  Usado por criarDropdownSetores e criarDropdownRole
 // ════════════════════════════════════════════════════════════════════════════
 
-/**
- * Cria um dropdown de seleção de setores com cores e checkmarks.
- *
- * @param {string}   containerId   ID do elemento container (.badges-container)
- * @param {Array}    setores       Array de roles filtrados (sem admin)
- * @param {Array}    selectedIds   Array mutável de IDs selecionados
- * @param {Function} onChange      Callback opcional após toggle
- */
-function criarDropdownSetores(containerId, setores, selectedIds, onChange) {
+function _criarBaseDropdown(containerId) {
     const container = document.getElementById(containerId);
-    if (!container) return;
+    if (!container) return null;
     container.innerHTML = "";
 
+    // Remove painel anterior do body se existir
     const painelAnterior = document.getElementById(`panel-${containerId}`);
     if (painelAnterior) painelAnterior.remove();
-
-    if (!setores.length) {
-        container.innerHTML = '<span class="badge-loading">Nenhum setor cadastrado ainda.</span>';
-        return;
-    }
 
     // ── Trigger ──────────────────────────────────────────────────────────────
     const trigger = document.createElement("button");
@@ -112,31 +101,85 @@ function criarDropdownSetores(containerId, setores, selectedIds, onChange) {
     trigger.appendChild(triggerLeft);
     trigger.appendChild(triggerArrow);
 
-    // ── Painel anexado ao <body> ──────────────────────────────────────────────
+    // ── Painel anexado ao <body> (escapa de overflow:hidden) ──────────────────
     const panel = document.createElement("div");
     panel.className      = "badges-dropdown-panel";
     panel.id             = `panel-${containerId}`;
-    panel.style.position = "absolute";
+    panel.style.position = "fixed";
     panel.style.zIndex   = "9999";
     document.body.appendChild(panel);
 
-    // ── Posicionar painel ─────────────────────────────────────────────────────
+    // ── Posicionamento via getBoundingClientRect (fixed = relativo à viewport) ─
     function posicionarPainel() {
-        const rect        = trigger.getBoundingClientRect();
-        const alturaPanel = panel.offsetHeight || 200;
+        const rect         = trigger.getBoundingClientRect();
+        const alturaPanel  = panel.offsetHeight || 200;
         const espacoAbaixo = window.innerHeight - rect.bottom;
 
-        panel.style.left  = `${rect.left + window.scrollX}px`;
+        panel.style.left  = `${rect.left}px`;
         panel.style.width = `${rect.width}px`;
 
         if (espacoAbaixo < alturaPanel && rect.top > alturaPanel) {
-            panel.style.top = `${rect.top + window.scrollY - alturaPanel - 4}px`;
+            panel.style.top = `${rect.top - alturaPanel - 4}px`;
         } else {
-            panel.style.top = `${rect.bottom + window.scrollY + 4}px`;
+            panel.style.top = `${rect.bottom + 4}px`;
         }
     }
 
-    // ── Atualizar trigger ─────────────────────────────────────────────────────
+    // ── Toggle ────────────────────────────────────────────────────────────────
+    let isOpen = false;
+
+    function abrirDropdown() {
+        isOpen = true;
+        panel.classList.add("open");
+        trigger.classList.add("open");
+        posicionarPainel();
+    }
+
+    function fecharDropdown() {
+        isOpen = false;
+        panel.classList.remove("open");
+        trigger.classList.remove("open");
+    }
+
+    trigger.addEventListener("click", e => {
+        e.stopPropagation();
+        isOpen ? fecharDropdown() : abrirDropdown();
+    });
+
+    window.addEventListener("scroll", () => { if (isOpen) posicionarPainel(); }, true);
+    window.addEventListener("resize", () => { if (isOpen) posicionarPainel(); });
+
+    document.addEventListener("click", e => {
+        if (!container.contains(e.target) && !panel.contains(e.target)) fecharDropdown();
+    });
+
+    document.addEventListener("keydown", e => {
+        if (e.key === "Escape") fecharDropdown();
+    });
+
+    container.appendChild(trigger);
+
+    return { container, trigger, triggerLeft, panel, fecharDropdown };
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+//  DROPDOWN DE SETORES — seleção múltipla
+// ════════════════════════════════════════════════════════════════════════════
+
+function criarDropdownSetores(containerId, setores, selectedIds, onChange) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+
+    if (!setores.length) {
+        container.innerHTML = '<span class="badge-loading">Nenhum setor cadastrado ainda.</span>';
+        return;
+    }
+
+    const base = _criarBaseDropdown(containerId);
+    if (!base) return;
+    const { triggerLeft, panel, fecharDropdown } = base;
+
+    // ── Atualizar trigger com mini-badges selecionados ────────────────────────
     function atualizarTrigger() {
         triggerLeft.innerHTML = "";
         const selecionados = setores.filter(r => selectedIds.includes(r.id));
@@ -155,7 +198,7 @@ function criarDropdownSetores(containerId, setores, selectedIds, onChange) {
         }
     }
 
-    // ── Renderizar itens ──────────────────────────────────────────────────────
+    // ── Renderizar itens do painel ────────────────────────────────────────────
     function renderizarItens() {
         panel.innerHTML = "";
         setores.forEach(role => {
@@ -192,54 +235,88 @@ function criarDropdownSetores(containerId, setores, selectedIds, onChange) {
         });
     }
 
-    // ── Toggle ────────────────────────────────────────────────────────────────
-    let isOpen = false;
+    // ── Montar ────────────────────────────────────────────────────────────────
+    atualizarTrigger();
+    renderizarItens();
 
-    function abrirDropdown() {
-        isOpen = true;
-        panel.classList.add("open");
-        trigger.classList.add("open");
-        posicionarPainel();
+    base.container._refresh = () => { renderizarItens(); atualizarTrigger(); };
+    base.container._reset   = () => { selectedIds.length = 0; atualizarTrigger(); renderizarItens(); };
+    base.container._destroy = () => { fecharDropdown(); panel.remove(); };
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+//  DROPDOWN DE ROLE — seleção única (substitui o <select> de tipo de acesso)
+// ════════════════════════════════════════════════════════════════════════════
+
+function criarDropdownRole(containerId, opcoes, valorInicial, onChange) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+
+    let valorAtual = valorInicial;
+
+    const base = _criarBaseDropdown(containerId);
+    if (!base) return;
+    const { triggerLeft, panel, fecharDropdown } = base;
+
+    // ── Atualizar trigger com opção selecionada ───────────────────────────────
+    function atualizarTrigger() {
+        triggerLeft.innerHTML = "";
+        const opcao = opcoes.find(o => o.value === valorAtual);
+        if (opcao) {
+            const mini = document.createElement("span");
+            mini.className   = `badge-mini ${opcao.classe}`;
+            mini.textContent = opcao.label;
+            triggerLeft.appendChild(mini);
+        }
     }
 
-    function fecharDropdown() {
-        isOpen = false;
-        panel.classList.remove("open");
-        trigger.classList.remove("open");
+    // ── Renderizar itens do painel ────────────────────────────────────────────
+    function renderizarItens() {
+        panel.innerHTML = "";
+        opcoes.forEach(opcao => {
+            const ativo = valorAtual === opcao.value;
+
+            const item = document.createElement("div");
+            item.className = `badge ${ativo ? "active" : "inactive"}`;
+            item.innerHTML = `
+                <div class="badge-label-wrap">
+                    <span class="badge-dot ${opcao.classe}"></span>
+                    <span>${opcao.label}</span>
+                </div>
+                <span class="badge-check" style="opacity:${ativo ? 1 : 0}">${SVG.check}</span>`;
+
+            item.addEventListener("click", () => {
+                valorAtual = opcao.value;
+                if (onChange) onChange(valorAtual);
+                renderizarItens();
+                atualizarTrigger();
+                fecharDropdown();
+            });
+
+            panel.appendChild(item);
+        });
     }
-
-    trigger.addEventListener("click", e => {
-        e.stopPropagation();
-        isOpen ? fecharDropdown() : abrirDropdown();
-    });
-
-    window.addEventListener("scroll", () => { if (isOpen) posicionarPainel(); }, true);
-    window.addEventListener("resize", () => { if (isOpen) posicionarPainel(); });
-
-    document.addEventListener("click", e => {
-        if (!container.contains(e.target) && !panel.contains(e.target)) fecharDropdown();
-    });
-
-    document.addEventListener("keydown", e => {
-        if (e.key === "Escape") fecharDropdown();
-    });
 
     // ── Montar ────────────────────────────────────────────────────────────────
     atualizarTrigger();
     renderizarItens();
-    container.appendChild(trigger);
 
-    container._refresh = () => { renderizarItens(); atualizarTrigger(); };
-    container._reset   = () => { selectedIds.length = 0; atualizarTrigger(); renderizarItens(); };
-    container._destroy = () => { fecharDropdown(); panel.remove(); };
+    base.container._getValue = () => valorAtual;
+    base.container._reset    = () => { valorAtual = valorInicial; atualizarTrigger(); renderizarItens(); };
+    base.container._destroy  = () => { fecharDropdown(); panel.remove(); };
 }
 
-function closeEditUserModal() {
-    document.getElementById("edit-user-modal").classList.add("hidden");
+// ─── INICIALIZAR DROPDOWN DE ROLE ─────────────────────────────────────────────
 
-    // Destrói o painel do dropdown ao fechar o modal
-    const editContainer = document.getElementById("edit-sectors-list");
-    if (editContainer?._destroy) editContainer._destroy();
+function renderizarRoleDropdown() {
+    criarDropdownRole(
+        "user-role-dropdown",
+        [
+            { value: "user",  label: "Usuário",       classe: "user" },
+            { value: "admin", label: "Administrador", classe: "admin" },
+        ],
+        "user"
+    );
 }
 
 // ─── BOOT ─────────────────────────────────────────────────────────────────────
@@ -329,8 +406,8 @@ function configurarPerfilAdmin(me) {
 async function carregarDados() {
     try {
         const [resUsers, resRoles] = await Promise.all([
-            fetch(`${API}/admin/users`,  { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(10000) }),
-            fetch(`${API}/admin/roles`,  { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(10000) }),
+            fetch(`${API}/admin/users`, { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(10000) }),
+            fetch(`${API}/admin/roles`, { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(10000) }),
         ]);
 
         if (resUsers.status === 401 || resRoles.status === 401) { redirecionarLogin(); return; }
@@ -343,7 +420,8 @@ async function carregarDados() {
         renderizarStats();
         renderizarTabelaUsuarios();
         renderizarTabelaSetores();
-        renderizarBadgesSetores();        // dropdown de criar usuário
+        renderizarBadgesSetores();
+        renderizarRoleDropdown();
         renderizarPreviewUsuarios();
         renderizarPreviewSetores();
 
@@ -354,6 +432,7 @@ async function carregarDados() {
     } catch (err) {
         console.error("❌ carregarDados:", err);
         renderizarBadgesSetores();
+        renderizarRoleDropdown();
         renderizarPreviewUsuarios();
         renderizarPreviewSetores();
         showToast("⚠️ " + err.message, "error");
@@ -371,11 +450,10 @@ function renderizarStats() {
     el("total-admins",  admins.length);
 }
 
-// ─── BADGES → DROPDOWN (formulário "Criar usuário") ───────────────────────────
+// ─── DROPDOWN SETORES (formulário "Criar usuário") ────────────────────────────
 
 function renderizarBadgesSetores() {
     const setores = allRoles.filter(r => r.name.toLowerCase() !== "admin");
-    // Preserva IDs que ainda são válidos
     selectedSectorIds = selectedSectorIds.filter(id => setores.some(r => r.id === id));
     criarDropdownSetores("sectors-list-badges", setores, selectedSectorIds);
 }
@@ -534,8 +612,8 @@ function renderizarTabelaSetores(filtro = "") {
 // ─── BUSCAS ───────────────────────────────────────────────────────────────────
 
 function configurarBuscas() {
-    document.getElementById("search-users")?.addEventListener("input",   e => renderizarTabelaUsuarios(e.target.value.trim()));
-    document.getElementById("search-sectors")?.addEventListener("input", e => renderizarTabelaSetores(e.target.value.trim()));
+    document.getElementById("search-users")?.addEventListener("input",       e => renderizarTabelaUsuarios(e.target.value.trim()));
+    document.getElementById("search-sectors")?.addEventListener("input",     e => renderizarTabelaSetores(e.target.value.trim()));
     document.getElementById("search-perm-viewer")?.addEventListener("input", e => renderizarListaViewers(e.target.value.trim()));
     document.getElementById("search-perm-target")?.addEventListener("input", e => filtrarTargets(e.target.value.trim()));
 }
@@ -733,10 +811,10 @@ function renderizarListaTargets(filtro = "") {
     }
 
     container.innerHTML = possiveis.map(u => {
-        const nome     = formatarNome(u.username);
-        const cor      = avatarColor(u.id);
-        const iniciais = nome.split(" ").map(p => p[0]).slice(0, 2).join("").toUpperCase();
-        const marcado  = permTargetsSelecionados.includes(u.id);
+        const nome      = formatarNome(u.username);
+        const cor       = avatarColor(u.id);
+        const iniciais  = nome.split(" ").map(p => p[0]).slice(0, 2).join("").toUpperCase();
+        const marcado   = permTargetsSelecionados.includes(u.id);
         const setorNome = u.roles.filter(r => r.name.toLowerCase() !== "admin")
                                .map(r => r.name).join(", ") || "Sem setor";
         return `
@@ -861,12 +939,16 @@ function configurarFormularios() {
         e.preventDefault();
         const btn = document.querySelector('[form="user-form"].btn-submit') || e.target.querySelector(".btn-submit");
         if (btn) btn.disabled = true;
+
+        // Lê o papel do dropdown customizado
+        const roleDropdown = document.getElementById("user-role-dropdown");
+        const papel = roleDropdown?._getValue ? roleDropdown._getValue() : "user";
+
         const payload = {
             username: document.getElementById("user-email").value.trim(),
             password: document.getElementById("user-password").value,
             role_ids: [...selectedSectorIds]
         };
-        const papel = document.getElementById("user-role").value;
         if (papel === "admin") {
             const adminRole = allRoles.find(r => r.name.toLowerCase() === "admin");
             if (adminRole && !payload.role_ids.includes(adminRole.id)) payload.role_ids.push(adminRole.id);
@@ -881,9 +963,10 @@ function configurarFormularios() {
             if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.detail || `Erro ${res.status}`); }
             e.target.reset();
             selectedSectorIds = [];
-            // Reseta o dropdown
-            const dropContainer = document.getElementById("sectors-list-badges");
-            if (dropContainer?._reset) dropContainer._reset();
+            const dropSetores = document.getElementById("sectors-list-badges");
+            if (dropSetores?._reset) dropSetores._reset();
+            const dropRole = document.getElementById("user-role-dropdown");
+            if (dropRole?._reset) dropRole._reset();
             await carregarDados();
             showToast("Usuário criado com sucesso!", "success");
         } catch (err) { console.error("❌", err); showToast(err.message, "error"); }
@@ -992,7 +1075,6 @@ function abrirEditarUsuario(userId) {
     document.getElementById("edit-user-name").value     = formatarNome(user.username);
     document.getElementById("edit-user-password").value = "";
 
-    // Dropdown dentro do modal de edição
     const setores = allRoles.filter(r => r.name.toLowerCase() !== "admin");
     criarDropdownSetores("edit-sectors-list", setores, editSectorIds);
 
@@ -1001,6 +1083,8 @@ function abrirEditarUsuario(userId) {
 
 function closeEditUserModal() {
     document.getElementById("edit-user-modal").classList.add("hidden");
+    const editContainer = document.getElementById("edit-sectors-list");
+    if (editContainer?._destroy) editContainer._destroy();
     editSectorIds = [];
 }
 
