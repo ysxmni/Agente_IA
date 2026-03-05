@@ -1298,10 +1298,10 @@ input:-webkit-autofill:focus {
 }
 
 .perspectiva-escopo-label {
-    font-size: 0.68rem;
-    font-weight: 700;
-    letter-spacing: 0.06em;
-    color: var(--text-muted);
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    color: var(--text-secondary);
     text-transform: uppercase;
     white-space: nowrap;
 }
@@ -1311,30 +1311,29 @@ input:-webkit-autofill:focus {
     align-items: center;
     gap: 0.35rem;
     padding: 0.35rem 0.75rem;
-    border-radius: 8px;
-    font-family: inherit;
-    font-size: 0.75rem;
-    font-weight: 600;
+    border-radius: var(--radius);
+    font-family: var(--font-sans);
+    font-size: 0.8rem;
+    font-weight: 500;
     cursor: pointer;
     border: 1px solid var(--border);
-    background: rgba(255,255,255,0.03);
-    color: var(--text-muted);
+    background-color: var(--input-bg);
+    color: var(--text-secondary);
     transition: all 0.2s;
     white-space: nowrap;
 }
 
-.escopo-btn svg { width: 13px; height: 13px; flex-shrink: 0; }
+.escopo-btn svg { width: 14px; height: 14px; flex-shrink: 0; }
 
 .escopo-btn:hover {
-    background: rgba(255,255,255,0.07);
-    border-color: rgba(255,255,255,0.15);
-    color: var(--text);
+    color: var(--text-primary);
+    border-color: var(--border-focus);
 }
 
 .escopo-btn.ativo {
-    background: rgba(59,130,246,0.12);
-    border-color: rgba(59,130,246,0.35);
-    color: var(--text);
+    background-color: var(--blue-dim);
+    border-color: rgba(59,130,246,0.3);
+    color: var(--accent-blue);
 }
 
 /* ── Linha de info "Visualizando análises de X" ── */
@@ -1344,9 +1343,9 @@ input:-webkit-autofill:focus {
     justify-content: space-between;
     gap: 0.75rem;
     padding: 0.5rem 0.85rem;
-    background: rgba(59,130,246,0.07);
-    border: 1px solid rgba(59,130,246,0.18);
-    border-radius: 8px;
+    background-color: var(--blue-dim);
+    border: 1px solid rgba(59,130,246,0.2);
+    border-radius: var(--radius);
     flex-wrap: nowrap;
 }
 
@@ -1354,9 +1353,9 @@ input:-webkit-autofill:focus {
     display: flex;
     align-items: center;
     gap: 0.4rem;
-    font-size: 0.78rem;
+    font-size: 0.8rem;
     font-weight: 500;
-    color: var(--text-muted);
+    color: var(--text-secondary);
     flex: 1;
     min-width: 0;
     white-space: nowrap;
@@ -1365,16 +1364,16 @@ input:-webkit-autofill:focus {
 }
 
 .perspectiva-info-text svg {
-    width: 13px;
-    height: 13px;
-    color: var(--blue);
+    width: 14px;
+    height: 14px;
+    color: var(--accent-blue);
     flex-shrink: 0;
 }
 
 .perspectiva-info-text strong {
-    color: var(--text);
-    font-weight: 700;
-    font-size: 0.78rem;
+    color: var(--text-primary);
+    font-weight: 600;
+    font-size: 0.8rem;
 }
 
 /* Botão "← Voltar às minhas" — mesmo estilo dos outros botões pill do sistema */

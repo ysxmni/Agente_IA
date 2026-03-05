@@ -89,6 +89,10 @@ function criarDropdownSetores(containerId, setores, selectedIds, onChange) {
     if (!container) return;
     container.innerHTML = "";
 
+    // Remove painel anterior do body se existir (evita duplicatas ao re-renderizar)
+    const painelAnterior = document.getElementById(`panel-${containerId}`);
+    if (painelAnterior) painelAnterior.remove();
+
     if (!setores.length) {
         container.innerHTML = '<span class="badge-loading">Nenhum setor cadastrado ainda.</span>';
         return;
@@ -109,9 +113,29 @@ function criarDropdownSetores(containerId, setores, selectedIds, onChange) {
     trigger.appendChild(triggerLeft);
     trigger.appendChild(triggerArrow);
 
-    // ── Painel ───────────────────────────────────────────────────────────────
+    // ── Painel — anexado ao <body> para escapar de overflow:hidden ────────────
     const panel = document.createElement("div");
     panel.className = "badges-dropdown-panel";
+    panel.id        = `panel-${containerId}`;
+    document.body.appendChild(panel);
+
+    // ── Posicionar painel alinhado ao trigger ─────────────────────────────────
+    function posicionarPainel() {
+        const rect        = trigger.getBoundingClientRect();
+        const alturaPanel = panel.offsetHeight || 200;
+        const espacoAbaixo = window.innerHeight - rect.bottom;
+
+        panel.style.left  = `${rect.left}px`;
+        panel.style.width = `${rect.width}px`;
+
+        if (espacoAbaixo < alturaPanel && rect.top > alturaPanel) {
+            // Abre para CIMA
+            panel.style.top = `${rect.top - alturaPanel - 4}px`;
+        } else {
+            // Abre para BAIXO (padrão)
+            panel.style.top = `${rect.bottom + 4}px`;
+        }
+    }
 
     // ── Atualizar trigger com mini-badges selecionados ────────────────────────
     function atualizarTrigger() {
@@ -140,9 +164,9 @@ function criarDropdownSetores(containerId, setores, selectedIds, onChange) {
             const classeSetor = _classeCorSetor(role.name);
 
             const item = document.createElement("div");
-            item.className    = `badge ${ativo ? "active" : "inactive"}`;
-            item.dataset.id   = role.id;
-            item.innerHTML    = `
+            item.className  = `badge ${ativo ? "active" : "inactive"}`;
+            item.dataset.id = role.id;
+            item.innerHTML  = `
                 <div class="badge-label-wrap">
                     <span class="badge-dot ${classeSetor}"></span>
                     <span>${role.name}</span>
@@ -150,7 +174,7 @@ function criarDropdownSetores(containerId, setores, selectedIds, onChange) {
                 <span class="badge-check" style="opacity:${ativo ? 1 : 0}">${SVG.check}</span>`;
 
             item.addEventListener("click", () => {
-                const idx = selectedIds.indexOf(role.id);
+                const idx   = selectedIds.indexOf(role.id);
                 const check = item.querySelector(".badge-check");
                 if (idx > -1) {
                     selectedIds.splice(idx, 1);
@@ -176,6 +200,7 @@ function criarDropdownSetores(containerId, setores, selectedIds, onChange) {
         isOpen = true;
         panel.classList.add("open");
         trigger.classList.add("open");
+        posicionarPainel(); // posiciona após display:block para offsetHeight correto
     }
 
     function fecharDropdown() {
@@ -189,8 +214,13 @@ function criarDropdownSetores(containerId, setores, selectedIds, onChange) {
         isOpen ? fecharDropdown() : abrirDropdown();
     });
 
+    // Reposiciona ao rolar ou redimensionar
+    window.addEventListener("scroll", () => { if (isOpen) posicionarPainel(); }, true);
+    window.addEventListener("resize", () => { if (isOpen) posicionarPainel(); });
+
+    // Fecha ao clicar fora
     document.addEventListener("click", e => {
-        if (!container.contains(e.target)) fecharDropdown();
+        if (!container.contains(e.target) && !panel.contains(e.target)) fecharDropdown();
     });
 
     document.addEventListener("keydown", e => {
@@ -201,11 +231,22 @@ function criarDropdownSetores(containerId, setores, selectedIds, onChange) {
     atualizarTrigger();
     renderizarItens();
     container.appendChild(trigger);
-    container.appendChild(panel);
+    // OBS: panel foi appendado ao body acima, NÃO ao container
 
-    // Expõe refresh externo
+    // ── API pública ───────────────────────────────────────────────────────────
     container._refresh = () => { renderizarItens(); atualizarTrigger(); };
     container._reset   = () => { selectedIds.length = 0; atualizarTrigger(); renderizarItens(); };
+
+    // ── Cleanup ao destruir (ex: fechar modal) ────────────────────────────────
+    container._destroy = () => { fecharDropdown(); panel.remove(); };
+}
+
+function closeEditUserModal() {
+    document.getElementById("edit-user-modal").classList.add("hidden");
+
+    // Destrói o painel do dropdown ao fechar o modal
+    const editContainer = document.getElementById("edit-sectors-list");
+    if (editContainer?._destroy) editContainer._destroy();
 }
 
 // ─── BOOT ─────────────────────────────────────────────────────────────────────

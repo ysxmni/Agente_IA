@@ -457,18 +457,17 @@ html, body {
 
 /* Dropdown panel */
 .badges-dropdown-panel {
-    position: absolute;
-    top: calc(100% + 4px);
-    left: 0;
-    right: 0;
+    /* REMOVA: position, top, left, right — agora é controlado via JS */
     background-color: var(--card-bg);
     border: 1px solid rgba(255,255,255,0.1);
     border-radius: var(--radius);
     overflow-y: auto;
     max-height: 200px;
-    z-index: 50;
     display: none;
     box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+    /* Posicionamento via JS (portal no body) */
+    position: fixed;
+    z-index: 9999;
 }
 
 .badges-dropdown-panel.open { display: block; }
