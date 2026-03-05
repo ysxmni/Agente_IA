@@ -1224,7 +1224,11 @@ input:-webkit-autofill:focus {
     gap: 0.75rem;
 }
 
+/* ── Label com ícone (igual ao setor-label do chat) ── */
 .perspectiva-label {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
     font-size: 0.68rem;
     font-weight: 700;
     letter-spacing: 0.09em;
@@ -1232,27 +1236,170 @@ input:-webkit-autofill:focus {
     text-transform: uppercase;
 }
 
+.perspectiva-label svg {
+    width: 13px;
+    height: 13px;
+    color: var(--blue);
+    flex-shrink: 0;
+}
+
+/* ── Botões de perspectiva (igual ao chat-setor-btn) ── */
 .perspectiva-selector { display: flex; flex-wrap: wrap; gap: 0.5rem; }
 
 .perspectiva-btn {
-    display: inline-flex; align-items: center; gap: 0.5rem;
-    padding: 0.45rem 0.9rem; border-radius: 8px;
-    font-family: inherit; font-size: 0.8rem; font-weight: 600;
-    cursor: pointer; border: 1px solid var(--border);
-    background: rgba(255,255,255,0.03); color: var(--text-muted);
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.4rem 0.85rem;
+    border-radius: 8px;
+    font-family: inherit;
+    font-size: 0.78rem;
+    font-weight: 600;
+    cursor: pointer;
+    border: 1px solid var(--border);
+    background: rgba(255,255,255,0.03);
+    color: var(--text-muted);
     transition: all 0.2s;
+    white-space: nowrap;
 }
 
-.perspectiva-btn.ativo {
-    background: rgba(59,130,246,0.12);
-    border-color: rgba(59,130,246,0.4);
+.perspectiva-btn:hover {
+    background: rgba(255,255,255,0.07);
+    border-color: rgba(255,255,255,0.15);
     color: var(--text);
 }
 
+.perspectiva-btn.ativo {
+    background: rgba(59,130,246,0.15);
+    border-color: var(--blue);
+    color: var(--text);
+    font-weight: 700;
+}
+
+/* mini avatar dentro do botão */
 .pav-avatar {
-    width: 22px; height: 22px; border-radius: 50%;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 0.65rem; font-weight: 700; flex-shrink: 0;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.62rem;
+    font-weight: 700;
+    flex-shrink: 0;
+}
+
+/* ── Linha de escopo (igual ao setor-label + buttons) ── */
+.perspectiva-escopo {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.perspectiva-escopo-label {
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+.escopo-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.35rem 0.75rem;
+    border-radius: 8px;
+    font-family: inherit;
+    font-size: 0.75rem;
+    font-weight: 600;
+    cursor: pointer;
+    border: 1px solid var(--border);
+    background: rgba(255,255,255,0.03);
+    color: var(--text-muted);
+    transition: all 0.2s;
+    white-space: nowrap;
+}
+
+.escopo-btn svg { width: 13px; height: 13px; flex-shrink: 0; }
+
+.escopo-btn:hover {
+    background: rgba(255,255,255,0.07);
+    border-color: rgba(255,255,255,0.15);
+    color: var(--text);
+}
+
+.escopo-btn.ativo {
+    background: rgba(59,130,246,0.12);
+    border-color: rgba(59,130,246,0.35);
+    color: var(--text);
+}
+
+/* ── Linha de info "Visualizando análises de X" ── */
+.perspectiva-info-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.5rem 0.85rem;
+    background: rgba(59,130,246,0.07);
+    border: 1px solid rgba(59,130,246,0.18);
+    border-radius: 8px;
+    flex-wrap: nowrap;
+}
+
+.perspectiva-info-text {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.78rem;
+    font-weight: 500;
+    color: var(--text-muted);
+    flex: 1;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.perspectiva-info-text svg {
+    width: 13px;
+    height: 13px;
+    color: var(--blue);
+    flex-shrink: 0;
+}
+
+.perspectiva-info-text strong {
+    color: var(--text);
+    font-weight: 700;
+    font-size: 0.78rem;
+}
+
+/* Botão "← Voltar às minhas" — mesmo estilo dos outros botões pill do sistema */
+.btn-voltar-minhas {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.35rem 0.75rem;
+    border-radius: 8px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    font-family: inherit;
+    font-size: 0.75rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.btn-voltar-minhas:hover {
+    background: rgba(255,255,255,0.08);
+    border-color: rgba(255,255,255,0.18);
+    color: var(--text);
 }
 
 /* ════════════════════════════════
@@ -1360,6 +1507,8 @@ input:-webkit-autofill:focus {
     .modal-footer { flex-direction: column; }
     .btn-modal-footer { max-width: 100%; }
     .print-preview-body { padding: 0.5rem; }
+
+    .perspectiva-escopo { gap: 0.4rem; }
 }
 
 /* ── Mobile (≤ 480px) ── */
@@ -1382,6 +1531,9 @@ input:-webkit-autofill:focus {
     .filter-btn { padding: 0.4rem 0.75rem; font-size: 0.75rem; }
 
     .history-grid { gap: 0.75rem; }
+
+    .perspectiva-btn  { padding: 0.35rem 0.7rem; font-size: 0.75rem; }
+    .escopo-btn       { padding: 0.3rem 0.6rem;  font-size: 0.72rem; }
 }
 
 /* ════════════════════════════════

@@ -16,6 +16,9 @@ const SVG = {
     eyeOff:   `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>`,
     warning:  `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`,
     eyeSmall: `<svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>`,
+    check:    `<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`,
+    chevDown: `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>`,
+    arrowLeft:`<svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>`,
 };
 
 // ─── ESTADO ──────────────────────────────────────────────────────────────────
@@ -59,6 +62,152 @@ function _metaSetor(nomeRole) {
     return SETOR_META[chave] || SETOR_META[chaveSlug] || { emoji: "🏢", classe: "" };
 }
 
+// ─── CLASSE DE COR DO SETOR ───────────────────────────────────────────────────
+
+function _classeCorSetor(nome) {
+    const slug = _slugSetor(nome);
+    if (slug.includes("juridic"))                        return "juridico";
+    if (slug.includes("suprimento"))                     return "suprimentos";
+    if (slug.includes("gestao") || slug.includes("contrato")) return "gestaocontratos";
+    return "default";
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+//  DROPDOWN DE SETORES (substitui badges planos)
+// ════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Cria um dropdown de seleção de setores com cores e checkmarks.
+ *
+ * @param {string}   containerId   ID do elemento container (.badges-container)
+ * @param {Array}    setores       Array de roles filtrados (sem admin)
+ * @param {Array}    selectedIds   Array mutável de IDs selecionados
+ * @param {Function} onChange      Callback opcional após toggle
+ */
+function criarDropdownSetores(containerId, setores, selectedIds, onChange) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    container.innerHTML = "";
+
+    if (!setores.length) {
+        container.innerHTML = '<span class="badge-loading">Nenhum setor cadastrado ainda.</span>';
+        return;
+    }
+
+    // ── Trigger ──────────────────────────────────────────────────────────────
+    const trigger = document.createElement("button");
+    trigger.type      = "button";
+    trigger.className = "badges-dropdown-trigger";
+
+    const triggerLeft  = document.createElement("div");
+    triggerLeft.className = "badges-dropdown-trigger-left";
+
+    const triggerArrow = document.createElement("span");
+    triggerArrow.className = "badges-dropdown-trigger-arrow";
+    triggerArrow.innerHTML = SVG.chevDown;
+
+    trigger.appendChild(triggerLeft);
+    trigger.appendChild(triggerArrow);
+
+    // ── Painel ───────────────────────────────────────────────────────────────
+    const panel = document.createElement("div");
+    panel.className = "badges-dropdown-panel";
+
+    // ── Atualizar trigger com mini-badges selecionados ────────────────────────
+    function atualizarTrigger() {
+        triggerLeft.innerHTML = "";
+        const selecionados = setores.filter(r => selectedIds.includes(r.id));
+        if (!selecionados.length) {
+            const ph = document.createElement("span");
+            ph.className   = "badges-dropdown-trigger-placeholder";
+            ph.textContent = "Selecionar setores...";
+            triggerLeft.appendChild(ph);
+        } else {
+            selecionados.forEach(r => {
+                const mini = document.createElement("span");
+                mini.className   = `badge-mini ${_classeCorSetor(r.name)}`;
+                mini.textContent = r.name;
+                triggerLeft.appendChild(mini);
+            });
+        }
+    }
+
+    // ── Renderizar itens do painel ────────────────────────────────────────────
+    function renderizarItens() {
+        panel.innerHTML = "";
+        setores.forEach(role => {
+            const ativo       = selectedIds.includes(role.id);
+            const classeSetor = _classeCorSetor(role.name);
+
+            const item = document.createElement("div");
+            item.className    = `badge ${ativo ? "active" : "inactive"}`;
+            item.dataset.id   = role.id;
+            item.innerHTML    = `
+                <div class="badge-label-wrap">
+                    <span class="badge-dot ${classeSetor}"></span>
+                    <span>${role.name}</span>
+                </div>
+                <span class="badge-check" style="opacity:${ativo ? 1 : 0}">${SVG.check}</span>`;
+
+            item.addEventListener("click", () => {
+                const idx = selectedIds.indexOf(role.id);
+                const check = item.querySelector(".badge-check");
+                if (idx > -1) {
+                    selectedIds.splice(idx, 1);
+                    item.classList.replace("active", "inactive");
+                    check.style.opacity = "0";
+                } else {
+                    selectedIds.push(role.id);
+                    item.classList.replace("inactive", "active");
+                    check.style.opacity = "1";
+                }
+                atualizarTrigger();
+                if (onChange) onChange(selectedIds);
+            });
+
+            panel.appendChild(item);
+        });
+    }
+
+    // ── Toggle abrir/fechar ───────────────────────────────────────────────────
+    let isOpen = false;
+
+    function abrirDropdown() {
+        isOpen = true;
+        panel.classList.add("open");
+        trigger.classList.add("open");
+    }
+
+    function fecharDropdown() {
+        isOpen = false;
+        panel.classList.remove("open");
+        trigger.classList.remove("open");
+    }
+
+    trigger.addEventListener("click", e => {
+        e.stopPropagation();
+        isOpen ? fecharDropdown() : abrirDropdown();
+    });
+
+    document.addEventListener("click", e => {
+        if (!container.contains(e.target)) fecharDropdown();
+    });
+
+    document.addEventListener("keydown", e => {
+        if (e.key === "Escape") fecharDropdown();
+    });
+
+    // ── Montar ────────────────────────────────────────────────────────────────
+    atualizarTrigger();
+    renderizarItens();
+    container.appendChild(trigger);
+    container.appendChild(panel);
+
+    // Expõe refresh externo
+    container._refresh = () => { renderizarItens(); atualizarTrigger(); };
+    container._reset   = () => { selectedIds.length = 0; atualizarTrigger(); renderizarItens(); };
+}
+
 // ─── BOOT ─────────────────────────────────────────────────────────────────────
 
 document.addEventListener("DOMContentLoaded", async () => {
@@ -93,7 +242,6 @@ document.addEventListener("DOMContentLoaded", async () => {
             return;
         }
 
-        // Atualiza userRole no localStorage para garantir consistência
         localStorage.setItem("userRole", "admin");
         configurarPerfilAdmin(me);
 
@@ -161,7 +309,7 @@ async function carregarDados() {
         renderizarStats();
         renderizarTabelaUsuarios();
         renderizarTabelaSetores();
-        renderizarBadgesSetores();
+        renderizarBadgesSetores();        // dropdown de criar usuário
         renderizarPreviewUsuarios();
         renderizarPreviewSetores();
 
@@ -189,32 +337,13 @@ function renderizarStats() {
     el("total-admins",  admins.length);
 }
 
-// ─── BADGES DE SELEÇÃO DE SETOR ───────────────────────────────────────────────
+// ─── BADGES → DROPDOWN (formulário "Criar usuário") ───────────────────────────
 
 function renderizarBadgesSetores() {
-    const container = document.getElementById("sectors-list-badges");
-    if (!container) return;
-    container.innerHTML = "";
     const setores = allRoles.filter(r => r.name.toLowerCase() !== "admin");
-    if (!setores.length) {
-        container.innerHTML = '<span class="badge-loading">Nenhum setor cadastrado ainda.</span>';
-        return;
-    }
-    setores.forEach(role => {
-        const badge = document.createElement("span");
-        badge.className        = selectedSectorIds.includes(role.id) ? "badge active" : "badge inactive";
-        badge.textContent      = role.name;
-        badge.dataset.id       = role.id;
-        badge.dataset.setorNome = role.name;
-        badge.addEventListener("click", () => toggleBadge(role.id, badge, selectedSectorIds));
-        container.appendChild(badge);
-    });
-}
-
-function toggleBadge(id, element, lista) {
-    const idx = lista.indexOf(id);
-    if (idx > -1) { lista.splice(idx, 1); element.classList.replace("active", "inactive"); }
-    else          { lista.push(id);        element.classList.replace("inactive", "active"); }
+    // Preserva IDs que ainda são válidos
+    selectedSectorIds = selectedSectorIds.filter(id => setores.some(r => r.id === id));
+    criarDropdownSetores("sectors-list-badges", setores, selectedSectorIds);
 }
 
 // ─── PREVIEW LATERAL — USUÁRIOS ───────────────────────────────────────────────
@@ -233,13 +362,12 @@ function renderizarPreviewUsuarios() {
     }
 
     container.innerHTML = naoAdmin.map(u => {
-        const nome        = formatarNome(u.username);
-        const inicial     = nome.charAt(0).toUpperCase();
-        const setores     = u.roles.filter(r => r.name.toLowerCase() !== "admin");
-        const badgesHtml  = setores.length
+        const nome       = formatarNome(u.username);
+        const inicial    = nome.charAt(0).toUpperCase();
+        const setores    = u.roles.filter(r => r.name.toLowerCase() !== "admin");
+        const badgesHtml = setores.length
             ? setores.map(r => `<span class="preview-role-badge" data-setor="${_slugSetor(r.name)}">${r.name}</span>`).join("")
             : `<span class="preview-role-badge sem-setor">sem setor</span>`;
-
         return `
         <div class="preview-user-card">
             <div class="preview-avatar">${inicial}</div>
@@ -303,15 +431,15 @@ function renderizarTabelaUsuarios(filtro = "") {
     }
 
     lista.forEach(user => {
-        const tr          = document.createElement("tr");
-        const badgesRole  = user.roles.map(r => {
-            const nome   = r.name.toLowerCase();
-            let classe   = "role-badge ";
-            if (nome === "admin")                            classe += "role-admin";
+        const tr = document.createElement("tr");
+        const badgesRole = user.roles.map(r => {
+            const nome = r.name.toLowerCase();
+            let classe = "role-badge ";
+            if (nome === "admin")                                 classe += "role-admin";
             else if (nome === "jurídico" || nome === "juridico") classe += "role-user setor-juridico";
-            else if (nome === "suprimentos")                  classe += "role-user setor-suprimentos";
-            else if (nome.includes("gest"))                  classe += "role-user setor-gestao";
-            else                                             classe += "role-user";
+            else if (nome === "suprimentos")                      classe += "role-user setor-suprimentos";
+            else if (nome.includes("gest"))                       classe += "role-user setor-gestao";
+            else                                                  classe += "role-user";
             return `<span class="${classe}">${r.name}</span>`;
         }).join(" ");
 
@@ -424,14 +552,13 @@ function renderizarListaViewers(filtro = "", data = null) {
     }
 
     container.innerHTML = usuarios.map(u => {
-        const nome       = formatarNome(u.username);
-        const cor        = avatarColor(u.id);
+        const nome        = formatarNome(u.username);
+        const cor         = avatarColor(u.id);
         const selecionado = permViewerSelecionado === u.id;
-        const entrada    = (_permCache.permissoes || []).find(p => p.viewer_id === u.id);
-        const qtdTargets = entrada ? (entrada.can_see || []).length : 0;
-        const qtdSetores = entrada ? (entrada.sectors || []).length : 0;
-        const temPerm    = qtdTargets > 0 || qtdSetores > 0;
-
+        const entrada     = (_permCache.permissoes || []).find(p => p.viewer_id === u.id);
+        const qtdTargets  = entrada ? (entrada.can_see || []).length : 0;
+        const qtdSetores  = entrada ? (entrada.sectors || []).length : 0;
+        const temPerm     = qtdTargets > 0 || qtdSetores > 0;
         const parts = [];
         if (qtdSetores > 0) parts.push(`${qtdSetores} setor${qtdSetores > 1 ? "es" : ""}`);
         if (qtdTargets > 0) parts.push(`${qtdTargets} colega${qtdTargets > 1 ? "s" : ""}`);
@@ -578,7 +705,6 @@ function renderizarListaTargets(filtro = "") {
         const marcado  = permTargetsSelecionados.includes(u.id);
         const setorNome = u.roles.filter(r => r.name.toLowerCase() !== "admin")
                                .map(r => r.name).join(", ") || "Sem setor";
-
         return `
         <div class="perm-target-item ${marcado ? "marcado" : ""}" data-target-id="${u.id}" onclick="toggleTarget(${u.id})">
             <div class="perm-radio"><div class="perm-radio-dot"></div></div>
@@ -630,7 +756,7 @@ function atualizarResumoPerm() {
     const nU = permTargetsSelecionados.length;
     const nS = permSetoresSelecionados.length;
     if (nU === 0 && nS === 0) {
-        resumo.innerHTML = '<span style="color:var(--text-3)">Sem permissões — usuário vê apenas os próprios contratos</span>';
+        resumo.innerHTML = '<span style="color:var(--text-secondary,#94a3b8)">Sem permissões — usuário vê apenas os próprios contratos.</span>';
         return;
     }
     const partes = [];
@@ -639,7 +765,7 @@ function atualizarResumoPerm() {
         partes.push(`<strong style="color:var(--amber)">${nS} setor${nS > 1 ? "es" : ""}</strong> (${nomesSetores})`);
     }
     if (nU > 0) partes.push(`<strong style="color:var(--blue)">${nU} colega${nU > 1 ? "s" : ""}</strong>`);
-    resumo.innerHTML = `Acesso liberado: ${partes.join(" e ")}`;
+    resumo.innerHTML = `Acesso liberado para: ${partes.join(" e ")}`;
 }
 
 async function salvarPermissoes() {
@@ -662,7 +788,11 @@ async function salvarPermissoes() {
         _atualizarBadgeViewer(permViewerSelecionado, total);
 
         const entryIdx = (_permCache.permissoes || []).findIndex(p => p.viewer_id === permViewerSelecionado);
-        const entry = { viewer_id: permViewerSelecionado, can_see: permTargetsSelecionados.map(id => ({ id, target_id: id })), sectors: [...permSetoresSelecionados] };
+        const entry = {
+            viewer_id: permViewerSelecionado,
+            can_see:   permTargetsSelecionados.map(id => ({ id, target_id: id })),
+            sectors:   [...permSetoresSelecionados]
+        };
         if (entryIdx > -1) _permCache.permissoes[entryIdx] = entry;
         else { if (!_permCache.permissoes) _permCache.permissoes = []; _permCache.permissoes.push(entry); }
 
@@ -709,14 +839,17 @@ function configurarFormularios() {
         }
         try {
             const res = await fetch(`${API}/admin/users`, {
-                method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                method: "POST",
+                headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
                 body: JSON.stringify(payload)
             });
             if (res.status === 401) { redirecionarLogin(); return; }
             if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.detail || `Erro ${res.status}`); }
             e.target.reset();
             selectedSectorIds = [];
-            document.querySelectorAll("#sectors-list-badges .badge").forEach(b => b.classList.replace("active", "inactive"));
+            // Reseta o dropdown
+            const dropContainer = document.getElementById("sectors-list-badges");
+            if (dropContainer?._reset) dropContainer._reset();
             await carregarDados();
             showToast("Usuário criado com sucesso!", "success");
         } catch (err) { console.error("❌", err); showToast(err.message, "error"); }
@@ -733,7 +866,8 @@ function configurarFormularios() {
         };
         try {
             const res = await fetch(`${API}/admin/roles`, {
-                method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                method: "POST",
+                headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
                 body: JSON.stringify(payload)
             });
             if (res.status === 401) { redirecionarLogin(); return; }
@@ -755,12 +889,15 @@ function configurarFormularios() {
         if (senha) payload.password = senha;
         try {
             const res = await fetch(`${API}/admin/users/${userId}`, {
-                method: "PUT", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                method: "PUT",
+                headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
                 body: JSON.stringify(payload)
             });
             if (res.status === 401) { redirecionarLogin(); return; }
             if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.detail || `Erro ${res.status}`); }
-            closeEditUserModal(); await carregarDados(); showToast("Usuário atualizado!", "success");
+            closeEditUserModal();
+            await carregarDados();
+            showToast("Usuário atualizado!", "success");
         } catch (err) { console.error("❌", err); showToast(err.message, "error"); }
         finally { if (btn) btn.disabled = false; }
     });
@@ -770,15 +907,21 @@ function configurarFormularios() {
         const btn      = e.target.querySelector(".btn-submit");
         if (btn) btn.disabled = true;
         const sectorId = document.getElementById("edit-sector-id").value;
-        const payload  = { name: document.getElementById("edit-sector-name").value.trim(), description: document.getElementById("edit-sector-description").value.trim() };
+        const payload  = {
+            name:        document.getElementById("edit-sector-name").value.trim(),
+            description: document.getElementById("edit-sector-description").value.trim()
+        };
         try {
             const res = await fetch(`${API}/admin/roles/${sectorId}`, {
-                method: "PUT", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                method: "PUT",
+                headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
                 body: JSON.stringify(payload)
             });
             if (res.status === 401) { redirecionarLogin(); return; }
             if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.detail || `Erro ${res.status}`); }
-            closeEditSectorModal(); await carregarDados(); showToast("Setor atualizado!", "success");
+            closeEditSectorModal();
+            await carregarDados();
+            showToast("Setor atualizado!", "success");
         } catch (err) { console.error("❌", err); showToast(err.message, "error"); }
         finally { if (btn) btn.disabled = false; }
     });
@@ -786,14 +929,16 @@ function configurarFormularios() {
     document.getElementById("confirm-delete-btn")?.addEventListener("click", async () => {
         const { id, type } = itemToDelete;
         if (!id) return;
-        const endpoint  = type === "user" ? `${API}/admin/users/${id}` : `${API}/admin/roles/${id}`;
+        const endpoint   = type === "user" ? `${API}/admin/users/${id}` : `${API}/admin/roles/${id}`;
         const btnConfirm = document.getElementById("confirm-delete-btn");
         if (btnConfirm) btnConfirm.disabled = true;
         try {
             const res = await fetch(endpoint, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
             if (res.status === 401) { redirecionarLogin(); return; }
             if (!res.ok) throw new Error(`Erro ${res.status}`);
-            closeDeleteModal(); await carregarDados(); showToast("Item excluído!", "success");
+            closeDeleteModal();
+            await carregarDados();
+            showToast("Item excluído!", "success");
         } catch (err) { console.error("❌", err); showToast(err.message, "error"); }
         finally { if (btnConfirm) btnConfirm.disabled = false; }
     });
@@ -804,30 +949,26 @@ function configurarFormularios() {
 function abrirEditarUsuario(userId) {
     const user = allUsers.find(u => u.id === userId);
     if (!user) return;
-    editSectorIds = user.roles.map(r => r.id);
+    editSectorIds = user.roles
+        .filter(r => r.name.toLowerCase() !== "admin")
+        .map(r => r.id);
+
     document.getElementById("edit-user-id").value       = user.id;
     document.getElementById("edit-user-email").value    = user.username;
     document.getElementById("edit-user-name").value     = formatarNome(user.username);
     document.getElementById("edit-user-password").value = "";
-    const container = document.getElementById("edit-sectors-list");
-    container.innerHTML = "";
+
+    // Dropdown dentro do modal de edição
     const setores = allRoles.filter(r => r.name.toLowerCase() !== "admin");
-    if (!setores.length) {
-        container.innerHTML = '<span class="badge-loading">Nenhum setor cadastrado.</span>';
-    } else {
-        setores.forEach(role => {
-            const badge = document.createElement("span");
-            badge.className = editSectorIds.includes(role.id) ? "badge active" : "badge inactive";
-            badge.textContent = role.name;
-            badge.dataset.id = role.id;
-            badge.addEventListener("click", () => toggleBadge(role.id, badge, editSectorIds));
-            container.appendChild(badge);
-        });
-    }
+    criarDropdownSetores("edit-sectors-list", setores, editSectorIds);
+
     document.getElementById("edit-user-modal").classList.remove("hidden");
 }
 
-function closeEditUserModal() { document.getElementById("edit-user-modal").classList.add("hidden"); editSectorIds = []; }
+function closeEditUserModal() {
+    document.getElementById("edit-user-modal").classList.add("hidden");
+    editSectorIds = [];
+}
 
 function abrirEditarSetor(sectorId) {
     const role = allRoles.find(r => r.id === sectorId);
@@ -903,8 +1044,8 @@ function showToast(msg, tipo = "success") {
     void toast.offsetWidth;
     clearTimeout(toast._timer);
     toast._timer = setTimeout(() => {
-        toast.style.opacity   = "0";
-        toast.style.transform = "translateY(12px)";
+        toast.style.opacity    = "0";
+        toast.style.transform  = "translateY(12px)";
         toast.style.transition = "opacity 0.3s, transform 0.3s";
         setTimeout(() => {
             toast.classList.add("hidden");
