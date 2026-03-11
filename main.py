@@ -8,6 +8,26 @@ from fastapi.responses import JSONResponse
 from pypdf import PdfReader
 import logging
 
+# ════════════════════════════════════════════════════════════
+# IMPORTAÇÕES PARA EXTRAÇÃO ROBUSTA DE PDF
+# Tenta importar pymupdf e pdfplumber como fallbacks.
+# Se não estiverem instalados, usa apenas pypdf.
+#
+# Para instalar no servidor:
+#   pip install pymupdf pdfplumber
+# ════════════════════════════════════════════════════════════
+try:
+    import fitz  # pymupdf — melhor para PDFs gerados pelo Chrome/HTML
+    PYMUPDF_DISPONIVEL = True
+except ImportError:
+    PYMUPDF_DISPONIVEL = False
+
+try:
+    import pdfplumber  # excelente para tabelas e PDFs com encoding não padrão
+    PDFPLUMBER_DISPONIVEL = True
+except ImportError:
+    PDFPLUMBER_DISPONIVEL = False
+
 from sqlalchemy import create_engine, Column, Integer, String, ForeignKey, Table, TIMESTAMP, Text, Boolean, and_, or_
 from sqlalchemy.orm import sessionmaker, relationship, Session
 from sqlalchemy.ext.declarative import declarative_base
@@ -43,6 +63,16 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+if PYMUPDF_DISPONIVEL:
+    logger.info("✅ pymupdf disponível")
+else:
+    logger.warning("⚠️  pymupdf não instalado. Use: pip install pymupdf")
+
+if PDFPLUMBER_DISPONIVEL:
+    logger.info("✅ pdfplumber disponível")
+else:
+    logger.warning("⚠️  pdfplumber não instalado. Use: pip install pdfplumber")
+
 # ════════════════════════════════════════════════════════════
 # OAUTH2 E AUTENTICAÇÃO
 # ════════════════════════════════════════════════════════════
@@ -58,7 +88,7 @@ class UserLogin(BaseModel):
 app = FastAPI(
     title="Analisador de Contratos IA - Sistema Opersan",
     description="Sistema de análise de contratos com IA e gestão multi-setorial",
-    version="3.0.0"
+    version="3.1.0"
 )
 
 app.add_middleware(
@@ -76,6 +106,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 # ════════════════════════════════════════════════════════════
 # CONFIGURAÇÃO DA IA GEMINI
 # ════════════════════════════════════════════════════════════
@@ -402,6 +433,7 @@ PERGUNTA:
 Responda de forma direta e prática, citando a cláusula ou item exato de onde cada informação foi extraída."""
     }
 }
+
 # ════════════════════════════════════════════════════════════
 # CONFIGURAÇÃO DO BANCO DE DADOS
 # ════════════════════════════════════════════════════════════
@@ -410,7 +442,7 @@ pwd_context   = CryptContext(schemes=["bcrypt"], deprecated="auto")
 if DATABASE_URL.startswith("sqlite"):
     engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
 else:
-    engine = create_engine(DATABASE_URL)  # PostgreSQL não precisa desse argumento
+    engine = create_engine(DATABASE_URL)
 SessionLocal  = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 # ════════════════════════════════════════════════════════════
@@ -479,7 +511,6 @@ class Message(Base):
 #
 # viewer_id  → usuário que RECEBE a permissão (pode ver)
 # target_id  → usuário cujos contratos serão VISÍVEIS
-#              (quando target_id = -1 e sector_slug definido → acesso ao setor inteiro)
 #
 # Tipos de permissão:
 #   perm_type = "user"   → acesso a contratos de um usuário específico
@@ -689,7 +720,7 @@ async def get_current_admin_user(
     return user
 
 # ════════════════════════════════════════════════════════════
-# FUNÇÕES AUXILIARES
+# FUNÇÕES AUXILIARES GERAIS
 # ════════════════════════════════════════════════════════════
 
 def limpar_markdown(texto: str) -> str:
@@ -701,18 +732,126 @@ def limpar_markdown(texto: str) -> str:
     texto = texto.replace('___', '').replace('__', '').replace('_', '')
     return texto.strip()
 
+# ════════════════════════════════════════════════════════════
+# EXTRAÇÃO DE PDF — SISTEMA COM 3 CAMADAS DE FALLBACK
+#
+# ORDEM DE TENTATIVA:
+#   1. pymupdf  (fitz)    → melhor para PDFs do Chrome/HTML, PDFs modernos
+#   2. pdfplumber         → melhor para tabelas e encodings não padrão
+#   3. pypdf              → fallback padrão (pode falhar em PDFs do Chrome)
+#
+# Para instalar as bibliotecas extras no seu servidor:
+#   pip install pymupdf pdfplumber
+# ════════════════════════════════════════════════════════════
+
+def _extrair_com_pymupdf(conteudo: bytes) -> str:
+    """
+    pymupdf (fitz) é o mais robusto para PDFs gerados pelo Chrome
+    (Ctrl+P → Salvar como PDF) e PDFs com fontes embutidas complexas.
+    """
+    doc = fitz.open(stream=conteudo, filetype="pdf")
+    paginas = []
+    for pagina in doc:
+        texto = pagina.get_text("text")
+        if texto.strip():
+            paginas.append(texto)
+        else:
+            # Tenta modo "blocks" para páginas com layout mais complexo
+            blocos = pagina.get_text("blocks")
+            texto_blocos = "\n".join(b[4] for b in blocos if b[4].strip())
+            if texto_blocos.strip():
+                paginas.append(texto_blocos)
+    doc.close()
+    return "\n\n".join(paginas)
+
+def _extrair_com_pdfplumber(conteudo: bytes) -> str:
+    """
+    pdfplumber é excelente para PDFs com tabelas e encodings UTF problemáticos.
+    """
+    with pdfplumber.open(io.BytesIO(conteudo)) as pdf:
+        paginas = []
+        for pagina in pdf.pages:
+            texto = pagina.extract_text()
+            if texto and texto.strip():
+                paginas.append(texto)
+        return "\n\n".join(paginas)
+
+def _extrair_com_pypdf(conteudo: bytes) -> str:
+    """
+    pypdf é o fallback padrão. Funciona bem para PDFs simples,
+    mas pode falhar em PDFs gerados pelo Chrome ou com fonts embutidas.
+    """
+    leitor = PdfReader(io.BytesIO(conteudo))
+    paginas = []
+    for pagina in leitor.pages:
+        texto = pagina.extract_text()
+        if texto and texto.strip():
+            paginas.append(texto)
+    return "\n\n".join(paginas)
+
 def extrair_texto_pdf(conteudo: bytes) -> str:
+    """
+    Extração robusta com 3 camadas de fallback.
+
+    Tenta cada método em ordem e usa o primeiro que retornar
+    texto com pelo menos 50 caracteres. Se todos falharem,
+    lança HTTPException com mensagem clara para o usuário.
+    """
+    erros = []
+
+    # ── CAMADA 1: pymupdf (melhor para PDFs do Chrome) ──────────────
+    if PYMUPDF_DISPONIVEL:
+        try:
+            texto = _extrair_com_pymupdf(conteudo)
+            if texto and len(texto.strip()) >= 50:
+                logger.info(f"✅ Extração via pymupdf: {len(texto)} caracteres")
+                return texto
+            else:
+                erros.append("pymupdf: texto insuficiente")
+                logger.warning(f"⚠️  pymupdf extraiu pouco texto ({len(texto.strip())} chars)")
+        except Exception as e:
+            erros.append(f"pymupdf: {str(e)[:100]}")
+            logger.warning(f"⚠️  pymupdf falhou: {e}")
+
+    # ── CAMADA 2: pdfplumber ─────────────────────────────────────────
+    if PDFPLUMBER_DISPONIVEL:
+        try:
+            texto = _extrair_com_pdfplumber(conteudo)
+            if texto and len(texto.strip()) >= 50:
+                logger.info(f"✅ Extração via pdfplumber: {len(texto)} caracteres")
+                return texto
+            else:
+                erros.append("pdfplumber: texto insuficiente")
+                logger.warning(f"⚠️  pdfplumber extraiu pouco texto ({len(texto.strip())} chars)")
+        except Exception as e:
+            erros.append(f"pdfplumber: {str(e)[:100]}")
+            logger.warning(f"⚠️  pdfplumber falhou: {e}")
+
+    # ── CAMADA 3: pypdf (fallback padrão) ───────────────────────────
     try:
-        leitor         = PdfReader(io.BytesIO(conteudo))
-        texto_completo = []
-        for pagina in leitor.pages:
-            texto_pagina = pagina.extract_text()
-            if texto_pagina:
-                texto_completo.append(texto_pagina)
-        return "\n\n".join(texto_completo)
+        texto = _extrair_com_pypdf(conteudo)
+        if texto and len(texto.strip()) >= 50:
+            logger.info(f"✅ Extração via pypdf: {len(texto)} caracteres")
+            return texto
+        else:
+            erros.append("pypdf: texto insuficiente")
+            logger.warning(f"⚠️  pypdf extraiu pouco texto ({len(texto.strip())} chars)")
     except Exception as e:
-        logger.error(f"❌ Erro ao extrair texto do PDF: {e}")
-        raise HTTPException(status_code=400, detail="Erro ao processar PDF.")
+        erros.append(f"pypdf: {str(e)[:100]}")
+        logger.error(f"❌ pypdf falhou: {e}")
+
+    # ── TODOS OS MÉTODOS FALHARAM ────────────────────────────────────
+    logger.error(f"❌ Todos os métodos de extração falharam: {erros}")
+    raise HTTPException(
+        status_code=400,
+        detail=(
+            "Não foi possível extrair texto deste PDF. "
+            "Possíveis causas: (1) PDF é uma imagem escaneada sem texto selecionável, "
+            "(2) PDF está protegido contra cópia, "
+            "(3) PDF corrompido. "
+            "Tente abrir o PDF, selecionar todo o texto com Ctrl+A e verificar se ele é selecionável."
+        )
+    )
 
 def gerar_resumo_ia(texto: str, setor: str = "juridico") -> str:
     if not client or not MODELO_ATIVO:
@@ -1195,9 +1334,7 @@ async def upload_contrato(
 
     try:
         conteudo = await file.read()
-        texto    = extrair_texto_pdf(conteudo)
-        if not texto or len(texto.strip()) < 50:
-            raise HTTPException(status_code=400, detail="Não foi possível extrair texto do PDF.")
+        texto    = extrair_texto_pdf(conteudo)  # usa o sistema de 3 camadas de fallback
 
         resumo = gerar_resumo_ia(texto, setor)
 
@@ -1500,11 +1637,16 @@ async def perguntar_contrato(
 async def root():
     return {
         "sistema":             "Analisador de Contratos IA - Opersan",
-        "versao":              "3.0.0",
+        "versao":              "3.1.0",
         "status":              "online",
         "ia_disponivel":       MODELO_ATIVO is not None,
         "modelo_ia":           MODELO_ATIVO,
-        "setores_disponiveis": list(PROMPTS_SETORES.keys())
+        "setores_disponiveis": list(PROMPTS_SETORES.keys()),
+        "extratores_pdf": {
+            "pymupdf":    PYMUPDF_DISPONIVEL,
+            "pdfplumber": PDFPLUMBER_DISPONIVEL,
+            "pypdf":      True
+        }
     }
 
 @app.get("/health", tags=["Sistema"])
@@ -1512,7 +1654,11 @@ async def health_check():
     return {
         "status":   "healthy",
         "database": "connected",
-        "ia":       "available" if MODELO_ATIVO else "unavailable"
+        "ia":       "available" if MODELO_ATIVO else "unavailable",
+        "pdf_extratores": {
+            "pymupdf":    PYMUPDF_DISPONIVEL,
+            "pdfplumber": PDFPLUMBER_DISPONIVEL,
+        }
     }
 
 # ════════════════════════════════════════════════════════════
@@ -1522,6 +1668,6 @@ async def health_check():
 if __name__ == "__main__":
     import uvicorn
     logger.info("=" * 60)
-    logger.info("🚀 INICIANDO SERVIDOR - Sistema Opersan v3.0")
+    logger.info("🚀 INICIANDO SERVIDOR - Sistema Opersan v3.1")
     logger.info("=" * 60)
     uvicorn.run(app, host=HOST, port=PORT)
