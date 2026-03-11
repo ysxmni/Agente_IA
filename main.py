@@ -856,7 +856,7 @@ def extrair_texto_pdf(conteudo: bytes) -> str:
 def gerar_resumo_ia(texto: str, setor: str = "juridico") -> str:
     if not client or not MODELO_ATIVO:
         return "❌ Serviço de IA temporariamente indisponível."
-    texto_limitado = texto[:15000]
+    texto_limitado = texto[:8000]
     config_setor   = PROMPTS_SETORES.get(setor, PROMPTS_SETORES["juridico"])
     prompt         = config_setor["resumo"].format(texto=texto_limitado)
     try:
@@ -873,7 +873,7 @@ def gerar_resposta_ia(pergunta: str, contexto: str, setor: str = "juridico") -> 
     config_setor = PROMPTS_SETORES.get(setor, PROMPTS_SETORES["juridico"])
     prompt       = config_setor["perguntas"].format(
         pergunta = pergunta,
-        contexto = contexto[:10000]
+        contexto = contexto[:6000]
     )
     try:
         response = client.models.generate_content(model=MODELO_ATIVO, contents=prompt)
