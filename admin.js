@@ -76,6 +76,45 @@ const token = localStorage.getItem("userToken") || localStorage.getItem("token")
         .badge-dot.gestaocontratos { background:#f59e0b; }
         .badge-check { color:#3b82f6; flex-shrink:0; display:flex; align-items:center; }
         .badge-loading { font-size:.8rem; color:#475569; padding:.5rem .75rem; }
+
+        /* ════════════════════════════════════════════════
+           LAYOUT LADO A LADO — Formulário + Tabela
+           section-users e section-sectors ficam em grid:
+           coluna esquerda = formulário (novo)
+           coluna direita  = tabela (todos)
+        ════════════════════════════════════════════════ */
+        #section-users,
+        #section-sectors {
+            display: grid !important;
+            grid-template-columns: 420px 1fr;
+            gap: 1.5rem;
+            align-items: start;
+        }
+
+        /* Garante que form e tabela sejam filhos diretos do grid */
+        #section-users  > *,
+        #section-sectors > * {
+            min-width: 0;
+        }
+
+        /* Card do formulário — fica fixo na esquerda */
+        #section-users  .admin-card:first-child,
+        #section-sectors .admin-card:first-child {
+            position: sticky;
+            top: 1rem;
+        }
+
+        /* Responsivo: empilha em telas menores */
+        @media (max-width: 1100px) {
+            #section-users,
+            #section-sectors {
+                grid-template-columns: 1fr !important;
+            }
+            #section-users  .admin-card:first-child,
+            #section-sectors .admin-card:first-child {
+                position: static;
+            }
+        }
     `;
     document.head.appendChild(s);
 })();
@@ -416,12 +455,63 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 
     await carregarDados();
+    _aplicarLayoutSideBySide();
     configurarFormularios();
     configurarTeclado();
     configurarBuscas();
 });
 
-// ─── ERRO DE PERMISSÃO ────────────────────────────────────────────────────────
+// ════════════════════════════════════════════════════════════════════════════
+//  LAYOUT LADO A LADO — detecta os containers reais e aplica o grid
+//  Funciona independente do nome de classe/id do admin.html
+// ════════════════════════════════════════════════════════════════════════════
+
+function _aplicarLayoutSideBySide() {
+    // IDs conhecidos das seções de usuários e setores
+    const secoes = [
+        document.getElementById("section-users"),
+        document.getElementById("section-sectors"),
+        // fallbacks caso os IDs sejam diferentes
+        document.querySelector(".admin-section-users"),
+        document.querySelector(".admin-section-sectors"),
+    ].filter(Boolean);
+
+    secoes.forEach(secao => {
+        // Pega os 2 primeiros filhos diretos que sejam cards/divs
+        const filhos = [...secao.children].filter(el =>
+            el.tagName === "DIV" || el.classList.contains("admin-card")
+        );
+        if (filhos.length < 2) return;
+
+        // Aplica grid diretamente no elemento pai
+        Object.assign(secao.style, {
+            display:             "grid",
+            gridTemplateColumns: "420px 1fr",
+            gap:                 "1.5rem",
+            alignItems:          "start",
+        });
+
+        // Formulário (1º filho) fica sticky
+        Object.assign(filhos[0].style, {
+            position: "sticky",
+            top:      "1rem",
+        });
+
+        // Responsivo via resize observer
+        const ro = new ResizeObserver(entries => {
+            for (const entry of entries) {
+                if (entry.contentRect.width < 1100) {
+                    secao.style.gridTemplateColumns = "1fr";
+                    filhos[0].style.position        = "static";
+                } else {
+                    secao.style.gridTemplateColumns = "420px 1fr";
+                    filhos[0].style.position        = "sticky";
+                }
+            }
+        });
+        ro.observe(secao);
+    });
+}
 
 function mostrarErroPermissao(mensagem) {
     document.body.innerHTML = `

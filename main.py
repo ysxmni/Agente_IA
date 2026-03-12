@@ -388,30 +388,88 @@ else:
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 # ════════════════════════════════════════════════════════════
-# FILA DE JOBS ASSÍNCRONOS
-# Resolve o timeout de 30s do Render free tier:
-# O upload retorna imediatamente um job_id.
-# A análise roda em background thread.
-# O frontend faz polling em GET /job/{job_id} até concluir.
+# JOBS PERSISTENTES NO SQLITE
+# Resolve o problema de restart do Render free tier:
+# os jobs ficam no banco e sobrevivem a reinicializações.
 # ════════════════════════════════════════════════════════════
-_jobs: dict = {}
-_jobs_lock  = threading.Lock()
+
+def _db_path() -> str:
+    return DATABASE_URL.replace("sqlite:///", "") if DATABASE_URL.startswith("sqlite") else None
+
+def _job_conn():
+    path = _db_path()
+    if not path:
+        return None
+    conn = sqlite3.connect(path, check_same_thread=False)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS _jobs (
+            job_id      TEXT PRIMARY KEY,
+            status      TEXT DEFAULT 'processing',
+            result_json TEXT,
+            error       TEXT,
+            contrato_id INTEGER,
+            created_at  REAL
+        )""")
+    conn.commit()
+    return conn
 
 def _criar_job() -> str:
     job_id = str(uuid.uuid4())
-    with _jobs_lock:
-        _jobs[job_id] = {"status": "processing", "result": None, "error": None, "contrato_id": None}
+    conn   = _job_conn()
+    if conn:
+        conn.execute("INSERT INTO _jobs(job_id, status, created_at) VALUES(?,?,?)",
+                     (job_id, "processing", time.time()))
+        conn.commit()
+        conn.close()
     return job_id
 
 def _finalizar_job(job_id: str, contrato_id: int, result: dict):
-    with _jobs_lock:
-        if job_id in _jobs:
-            _jobs[job_id].update({"status": "done", "result": result, "contrato_id": contrato_id})
+    import json
+    conn = _job_conn()
+    if conn:
+        conn.execute("UPDATE _jobs SET status=?,result_json=?,contrato_id=? WHERE job_id=?",
+                     ("done", json.dumps(result, ensure_ascii=False), contrato_id, job_id))
+        conn.commit()
+        conn.close()
 
 def _falhar_job(job_id: str, erro: str):
-    with _jobs_lock:
-        if job_id in _jobs:
-            _jobs[job_id].update({"status": "error", "error": erro})
+    conn = _job_conn()
+    if conn:
+        conn.execute("UPDATE _jobs SET status=?,error=? WHERE job_id=?",
+                     ("error", erro[:500], job_id))
+        conn.commit()
+        conn.close()
+
+def _ler_job(job_id: str) -> Optional[dict]:
+    import json
+    conn = _job_conn()
+    if not conn:
+        return None
+    try:
+        row = conn.execute(
+            "SELECT status, result_json, error, contrato_id FROM _jobs WHERE job_id=?",
+            (job_id,)).fetchone()
+        conn.close()
+        if not row:
+            return None
+        return {
+            "status":      row[0],
+            "result":      json.loads(row[1]) if row[1] else None,
+            "error":       row[2],
+            "contrato_id": row[3]
+        }
+    except Exception:
+        conn.close()
+        return None
+
+def _limpar_jobs_antigos():
+    """Remove jobs com mais de 2 horas para não acumular no banco."""
+    conn = _job_conn()
+    if conn:
+        limite = time.time() - 7200
+        conn.execute("DELETE FROM _jobs WHERE created_at < ?", (limite,))
+        conn.commit()
+        conn.close()
 
 def _processar_em_background(job_id: str, conteudo: bytes, filename: str, setor: str, user_id: int):
     """Roda em thread separada. Extrai PDF, chama Gemini, salva no banco."""
@@ -435,6 +493,8 @@ def _processar_em_background(job_id: str, conteudo: bytes, filename: str, setor:
         _falhar_job(job_id, str(e)[:300])
     finally:
         db.close()
+        try: _limpar_jobs_antigos()
+        except: pass
 
 user_role_association = Table(
     'user_role_association', Base.metadata,
@@ -1384,15 +1444,18 @@ async def upload_contrato(
 @app.get("/job/{job_id}", tags=["Contratos"])
 async def status_job(job_id: str, current_user: User = Depends(get_current_user)):
     """Polling do status de análise. Retorna: processing | done | error."""
-    with _jobs_lock:
-        job = _jobs.get(job_id)
+    job = _ler_job(job_id)
     if not job:
-        raise HTTPException(status_code=404, detail="Job não encontrado")
+        # Job não existe — pode ter expirado (> 2h) ou servidor reiniciou antes de gravar
+        raise HTTPException(
+            status_code=404,
+            detail="Job não encontrado. O servidor pode ter reiniciado. Tente enviar o arquivo novamente."
+        )
     return {
         "job_id":      job_id,
-        "status":      job["status"],        # processing | done | error
-        "result":      job.get("result"),    # preenchido quando done
-        "error":       job.get("error"),     # preenchido quando error
+        "status":      job["status"],
+        "result":      job.get("result"),
+        "error":       job.get("error"),
         "contrato_id": job.get("contrato_id")
     }
 

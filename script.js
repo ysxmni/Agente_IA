@@ -502,7 +502,13 @@ async function _aguardarJob(jobId) {
             });
 
             if (!res.ok) {
-                if (res.status === 404) throw new Error("Job não encontrado no servidor");
+                if (res.status === 404) {
+                    // Servidor reiniciou entre o upload e o polling — orientar o usuário
+                    throw new Error(
+                        "O servidor reiniciou durante a análise (plano gratuito). " +
+                        "Aguarde 30 segundos e envie o arquivo novamente."
+                    );
+                }
                 continue;
             }
 
