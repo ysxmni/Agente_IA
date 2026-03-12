@@ -1,31 +1,11 @@
 // ════════════════════════════════════════════════════════════════════════════
-//  OPERSAN — script.js  v4.3  (zero Lucide — todos SVGs inline)
+//  OPERSAN — script.js  v4.5  (setores dinâmicos via API)
 //
-//  CORREÇÕES v4.3 para contratos de 17+ páginas:
-//
-//  1. POLLING_INTERVALO: 5000 → 6000ms
-//     Dá um pouco mais de respiro entre tentativas sem perder responsividade.
-//
-//  2. POLLING_MAX: 120 → 150 tentativas (= 15 minutos)
-//     Cobre o novo GEMINI_TIMEOUT de 10 minutos mais margem para sobrecarga.
-//
-//  3. POLLING_TIMEOUT_POR_TENTATIVA: 15000 → 30000ms
-//     O servidor Render (free tier) pode levar >15s para responder ao /job
-//     enquanto está processando uma análise pesada em paralelo.
-//
-//  4. _aguardarJob(): lógica de continue corrigida com flag booleana
-//     O "continue" dentro de try/catch pode ser engolido silenciosamente
-//     em alguns ambientes. Substituído por flag "deveContinuar" explícita.
-//
-//  5. UPLOAD_TIMEOUT_MS: 60000 → 90000ms
-//     Cold start do Render + leitura do PDF grande pode ultrapassar 60s.
-//
-//  6. Barra de progresso reescrita com cálculo baseado no tempo decorrido
-//     Feedback visual mais honesto: cresce continuamente até 92% enquanto
-//     aguarda, sem travar visualmente.
-//
-//  7. Mensagens de status mais informativas durante o polling
-//     Informa o tempo decorrido e etapa estimada (extração/análise/salvando).
+//  MUDANÇAS v4.5:
+//  1. setoresDisponiveis agora é carregado da API (/admin/roles) no boot
+//  2. Metadados de ícone/cor/slug gerados automaticamente para qualquer setor
+//  3. MAPA_SETORES construído dinamicamente (não mais hardcoded)
+//  4. Mantida toda a lógica de polling, keep-alive e permissões v4.4
 // ════════════════════════════════════════════════════════════════════════════
 
 const API = (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1")
@@ -71,6 +51,9 @@ const IC = {
     scale:          `<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 16l3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1z"/><path d="M2 16l3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1z"/><path d="M7 21h10"/><line x1="12" y1="3" x2="12" y2="21"/><path d="M3 7h2c2 0 5-1 7-2 2 1 5 2 7 2h2"/></svg>`,
     package:        `<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="16.5" y1="9.4" x2="7.5" y2="4.21"/><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>`,
     "folder-kanban":`<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2z"/><line x1="8" y1="12" x2="8" y2="16"/><line x1="12" y1="10" x2="12" y2="16"/><line x1="16" y1="14" x2="16" y2="16"/></svg>`,
+    briefcase:      `<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>`,
+    settings:       `<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>`,
+    tag:            `<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>`,
     list:           `<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>`,
     eye:            `<svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>`,
     user:           `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`,
@@ -91,20 +74,90 @@ const IC = {
     "book-open":    `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>`,
 };
 
-function ic(name) {
-    return IC[name] || "";
+function ic(name) { return IC[name] || IC["tag"]; }
+
+// ════════════════════════════════════════════════════════════════════════════
+//  GERAÇÃO DINÂMICA DE METADADOS DE SETORES
+//  Converte qualquer nome de setor vindo da API em slug, ícone e cor
+// ════════════════════════════════════════════════════════════════════════════
+
+// Paleta de cores para setores dinâmicos (índice circular)
+const SETOR_CORES = [
+    "#3b82f6", // azul
+    "#10b981", // verde
+    "#f59e0b", // âmbar
+    "#8b5cf6", // roxo
+    "#06b6d4", // ciano
+    "#ec4899", // rosa
+    "#f97316", // laranja
+    "#14b8a6", // teal
+];
+
+// Mapeamento de palavras-chave → ícone
+const SETOR_ICON_KEYWORDS = [
+    { palavras: ["jurid", "legal", "lei", "direito", "advog"],     icon: "scale"          },
+    { palavras: ["suprim", "compra", "estoque", "logist", "sto"],  icon: "package"        },
+    { palavras: ["gestao", "gestão", "contrat", "kanban"],         icon: "folder-kanban"  },
+    { palavras: ["financ", "contab", "fiscal"],                    icon: "briefcase"      },
+    { palavras: ["ti", "tech", "inform", "sistema", "software"],   icon: "settings"       },
+];
+
+/**
+ * Normaliza o nome do setor para um slug simples (sem acentos, sem espaços).
+ * Ex: "Gestão de Contratos" → "gestaocontratos"
+ */
+function _slugSetor(nome) {
+    return (nome || "")
+        .toLowerCase()
+        .normalize("NFD").replace(/[\u0300-\u036f]/g, "")  // remove acentos
+        .replace(/\s+/g, "")
+        .replace(/[^a-z0-9]/g, "");
+}
+
+/**
+ * Dado um nome de setor, retorna o ícone mais adequado.
+ */
+function _iconSetor(nome) {
+    const slug = _slugSetor(nome);
+    for (const regra of SETOR_ICON_KEYWORDS) {
+        if (regra.palavras.some(p => slug.includes(p))) return regra.icon;
+    }
+    return "tag"; // ícone padrão para setores desconhecidos
+}
+
+/**
+ * Dado um índice, retorna uma cor da paleta (circular).
+ */
+function _corSetor(indice) {
+    return SETOR_CORES[indice % SETOR_CORES.length];
+}
+
+/**
+ * Converte um role vindo da API em objeto de setor padronizado.
+ * { id: "juridico", nome: "Jurídico", icon: "scale", cor: "#3b82f6" }
+ */
+function _roleParaSetor(role, indice) {
+    return {
+        id:   _slugSetor(role.name),
+        nome: role.name,
+        icon: _iconSetor(role.name),
+        cor:  _corSetor(indice),
+        // guarda o id numérico da API para referência futura
+        apiId: role.id,
+    };
 }
 
 // ─── ESTADO GLOBAL ───────────────────────────────────────────────────────────
 
-let setoresDisponiveis = [
-    { id: "juridico",        nome: "Jurídico",            icon: "scale",          cor: "#3b82f6" },
-    { id: "suprimentos",     nome: "Suprimentos",         icon: "package",        cor: "#10b981" },
-    { id: "gestaocontratos", nome: "Gestão de Contratos", icon: "folder-kanban",  cor: "#f59e0b" }
-];
+// Inicializado vazio — preenchido pela API no boot
+let setoresDisponiveis    = [];
 
-let setorSelecionado      = "juridico";
-let setorChatAtivo        = "juridico";
+// MAPA_SETORES construído dinamicamente após carregarSetores()
+// Formato: { "slug": ["slug"], "nome original": ["slug"] }
+let MAPA_SETORES = { "admin": [] };
+
+let setorSelecionado      = null;
+let setorChatAtivo        = null;
 let setorFiltroAtivo      = "todos";
 let todosContratos        = [];
 let contratoParaExcluirId = null;
@@ -162,6 +215,9 @@ document.addEventListener("DOMContentLoaded", async () => {
         window.location.href = "login.html";
         return;
     }
+
+    // ── NOVO: carrega setores da API antes de tudo ──
+    await carregarSetores();
 
     await carregarVisibilidade();
 
@@ -236,6 +292,77 @@ async function autenticarUsuario() {
     if (data.id) localStorage.setItem("userId", data.id);
 }
 
+// ════════════════════════════════════════════════════════════════════════════
+//  CARREGAMENTO DINÂMICO DE SETORES DA API  ← NOVO em v4.5
+// ════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Busca /admin/roles, filtra o role "admin" e monta setoresDisponiveis + MAPA_SETORES.
+ * Se a API falhar, mantém um fallback com os 3 setores originais para não quebrar.
+ */
+async function carregarSetores() {
+    try {
+        const res = await fetch(`${API}/admin/roles`, {
+            headers: { Authorization: `Bearer ${usuario.token}` },
+            signal: AbortSignal.timeout(10000)
+        });
+
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+        const roles = await res.json();
+
+        // Filtra o role especial "admin" — não é um setor de trabalho
+        const setoresAPI = roles.filter(r => r.name.toLowerCase() !== "admin");
+
+        if (!setoresAPI.length) {
+            console.warn("⚠️ Nenhum setor retornado pela API — usando fallback.");
+            _usarSetoresFallback();
+            return;
+        }
+
+        // Constrói setoresDisponiveis com metadados gerados automaticamente
+        setoresDisponiveis = setoresAPI.map((role, i) => _roleParaSetor(role, i));
+
+        // Constrói MAPA_SETORES para configurarSetores() usar
+        MAPA_SETORES = { "admin": setoresDisponiveis.map(s => s.id) };
+        setoresDisponiveis.forEach(s => {
+            // mapeia pelo slug
+            MAPA_SETORES[s.id] = [s.id];
+            // mapeia também pelo nome original em lowercase (com e sem acento)
+            const nomeLower = s.nome.toLowerCase();
+            MAPA_SETORES[nomeLower] = [s.id];
+            // mapeia pelo slug sem acento (compatibilidade com roles antigos)
+            const nomeSlugNFD = s.nome.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, "");
+            if (nomeSlugNFD !== s.id) MAPA_SETORES[nomeSlugNFD] = [s.id];
+        });
+
+        console.log(`✅ ${setoresDisponiveis.length} setor(es) carregado(s):`, setoresDisponiveis.map(s => s.nome).join(", "));
+
+    } catch (err) {
+        console.warn("⚠️ Erro ao carregar setores da API:", err.message, "— usando fallback.");
+        _usarSetoresFallback();
+    }
+}
+
+/**
+ * Fallback com os 3 setores originais caso a API não responda.
+ */
+function _usarSetoresFallback() {
+    setoresDisponiveis = [
+        { id: "juridico",        nome: "Jurídico",            icon: "scale",          cor: "#3b82f6", apiId: null },
+        { id: "suprimentos",     nome: "Suprimentos",         icon: "package",        cor: "#10b981", apiId: null },
+        { id: "gestaocontratos", nome: "Gestão de Contratos", icon: "folder-kanban",  cor: "#f59e0b", apiId: null },
+    ];
+    MAPA_SETORES = {
+        "admin":               ["juridico", "suprimentos", "gestaocontratos"],
+        "jurídico":            ["juridico"],
+        "juridico":            ["juridico"],
+        "suprimentos":         ["suprimentos"],
+        "gestão de contratos": ["gestaocontratos"],
+        "gestaocontratos":     ["gestaocontratos"],
+    };
+}
+
 // ─── VISIBILIDADE ─────────────────────────────────────────────────────────────
 
 async function carregarVisibilidade() {
@@ -259,7 +386,8 @@ async function carregarVisibilidade() {
         } catch (e) {
             console.warn("⚠️ Admin: lista de usuários não carregada:", e.message);
         }
-        setoresVisiveis = ["juridico", "suprimentos", "gestaocontratos"];
+        // Admin vê todos os setores que existem
+        setoresVisiveis = setoresDisponiveis.map(s => s.id);
         return;
     }
 
@@ -281,30 +409,42 @@ async function carregarVisibilidade() {
 
 // ─── SETORES ─────────────────────────────────────────────────────────────────
 
-const MAPA_SETORES = {
-    "admin":               ["juridico", "suprimentos", "gestaocontratos"],
-    "jurídico":            ["juridico"],
-    "juridico":            ["juridico"],
-    "suprimentos":         ["suprimentos"],
-    "gestão de contratos": ["gestaocontratos"],
-    "gestaocontratos":     ["gestaocontratos"],
-};
-
 function configurarSetores() {
     if (usuario.isAdmin) {
-        usuario.setoresPermitidos = ["juridico", "suprimentos", "gestaocontratos"];
+        // Admin tem acesso a todos os setores carregados
+        usuario.setoresPermitidos = setoresDisponiveis.map(s => s.id);
     } else {
-        let p = MAPA_SETORES[usuario.role.toLowerCase()];
-        if (!p) {
-            p = [];
-            usuario.roles.forEach(r => {
-                const s = MAPA_SETORES[r.name.toLowerCase()];
-                if (s) s.forEach(x => { if (!p.includes(x)) p.push(x); });
-            });
+        // Constrói a lista de setores do usuário a partir de seus roles
+        let p = [];
+
+        // Tenta pelo role principal
+        const rolePrincipal = usuario.role.toLowerCase();
+        if (MAPA_SETORES[rolePrincipal]) {
+            p = [...MAPA_SETORES[rolePrincipal]];
         }
-        usuario.setoresPermitidos = (p && p.length) ? p : ["juridico"];
+
+        // Complementa com todos os roles do usuário
+        usuario.roles.forEach(r => {
+            const slugs = MAPA_SETORES[r.name.toLowerCase()] ||
+                          MAPA_SETORES[_slugSetor(r.name)] ||
+                          [];
+            slugs.forEach(x => { if (!p.includes(x)) p.push(x); });
+        });
+
+        // Garante que slugs de roles que batem diretamente com um setor funcionem
+        usuario.roles.forEach(r => {
+            if (r.name.toLowerCase() === "admin") return;
+            const slugRole = _slugSetor(r.name);
+            const setorDireto = setoresDisponiveis.find(s => s.id === slugRole);
+            if (setorDireto && !p.includes(setorDireto.id)) {
+                p.push(setorDireto.id);
+            }
+        });
+
+        usuario.setoresPermitidos = p.length ? p : (setoresDisponiveis[0] ? [setoresDisponiveis[0].id] : []);
     }
-    setorSelecionado = setorChatAtivo = usuario.setoresPermitidos[0];
+
+    setorSelecionado = setorChatAtivo = usuario.setoresPermitidos[0] || null;
 }
 
 function renderizarSetoresChat() {
@@ -419,24 +559,7 @@ function configurarEventos() {
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-// UPLOAD COM POLLING — v4.4
-//
-// Fluxo:
-//   1. POST /upload → recebe job_id imediatamente
-//   2. Inicia keep-alive ping a cada 55s para manter servidor acordado
-//   3. Loop de polling: GET /job/{job_id} a cada POLLING_INTERVALO ms
-//   4. 404 NÃO é fatal — aguarda 45s (cold start) e tenta até 3x antes de desistir
-//   5. Quando status === "done" → para ping, exibe resultado
-//   6. Quando status === "error" → para ping, exibe mensagem clara
-//
-// CORREÇÃO PRINCIPAL v4.4:
-//   PROBLEMA: 404 era tratado como erro fatal imediato.
-//   CAUSA: O Render free tier pode reiniciar durante análise longa, o job
-//          some do SQLite e o polling recebe 404. Com 1 PDF de 17 páginas
-//          levando 3-8 min, o servidor pode acordar/dormir no meio do processo.
-//   SOLUÇÃO: 404 → aguarda 45s (cold start) → tenta novamente até 3x.
-//            Só após 3 tentativas consecutivas de 404 é que lança erro fatal.
-//   PREVENÇÃO: keep-alive ping a cada 55s evita que o servidor durma.
+// UPLOAD COM POLLING — mantido de v4.4
 // ════════════════════════════════════════════════════════════════════════════
 
 const ETAPAS_UPLOAD = [
@@ -446,26 +569,16 @@ const ETAPAS_UPLOAD = [
     { texto: "💾 Salvando análise...",          duracao: 600  },
 ];
 
-const UPLOAD_TIMEOUT_MS        = 90_000;   // 90s para o POST inicial
-const POLLING_INTERVALO        = 6_000;    // 6s entre tentativas
-const POLLING_MAX              = 150;      // 150 × 6s = 15 minutos máximo
-const POLLING_TIMEOUT_POR_TENT = 30_000;   // 30s por requisição de polling
+const UPLOAD_TIMEOUT_MS        = 90_000;
+const POLLING_INTERVALO        = 6_000;
+const POLLING_MAX              = 150;
+const POLLING_TIMEOUT_POR_TENT = 30_000;
+const MAX_RETRY_404            = 3;
+const ESPERA_COLD_START_MS     = 45_000;
+const PING_INTERVALO_MS        = 55_000;
+let   _pingTimer               = null;
+let   _pollingInicioMs         = 0;
 
-// FIX v4.4: retry de 404 — aguarda cold start antes de desistir
-const MAX_RETRY_404        = 3;        // máximo de 404 consecutivos antes de desistir
-const ESPERA_COLD_START_MS = 45_000;   // 45s de espera entre cada retry de 404
-
-// Keep-alive: ping periódico para manter o Render acordado durante análise
-const PING_INTERVALO_MS = 55_000;   // ping a cada 55s (Render dorme após ~60s sem req)
-let   _pingTimer        = null;
-
-// Referência de tempo para calcular progresso
-let _pollingInicioMs = 0;
-
-/**
- * Inicia ping periódico — mantém o servidor Render acordado durante análise.
- * FIX v4.4: sem isso, o Render dorme no meio de análises longas (3-8 min).
- */
 function _iniciarPing() {
     _pararPing();
     _pingTimer = setInterval(async () => {
@@ -474,9 +587,8 @@ function _iniciarPing() {
                 headers: { Authorization: `Bearer ${usuario.token}` },
                 signal:  AbortSignal.timeout(10_000)
             });
-            console.log("🏓 Keep-alive ping OK");
         } catch (e) {
-            console.warn("⚠️ Ping falhou (não crítico):", e.message);
+            console.warn("⚠️ Ping falhou:", e.message);
         }
     }, PING_INTERVALO_MS);
 }
@@ -490,10 +602,9 @@ async function enviarContrato() {
     const arquivo = input?.files?.[0];
     if (!arquivo) return;
 
-    // Garante que o setor está definido antes de enviar
-    const setorParaEnvio = setorSelecionado || usuario.setoresPermitidos?.[0] || "juridico";
+    const setorParaEnvio = setorSelecionado || usuario.setoresPermitidos?.[0] || setoresDisponiveis[0]?.id || "juridico";
     const setorInfo      = setoresDisponiveis.find(s => s.id === setorParaEnvio);
-    const nomeSetor      = setorInfo?.nome || "Jurídico";
+    const nomeSetor      = setorInfo?.nome || setorParaEnvio;
 
     _iniciarProgresso();
     await _avancarEtapa(0);
@@ -505,30 +616,23 @@ async function enviarContrato() {
     fd.append("setor", setorParaEnvio);
 
     try {
-        // ── PASSO 1: enviar arquivo e receber job_id ───────────────────────
         const resUpload = await fetch(`${API}/upload`, {
             method:  "POST",
             headers: { Authorization: `Bearer ${usuario.token}` },
             body:    fd,
-            signal:  AbortSignal.timeout(UPLOAD_TIMEOUT_MS)   // FIX v4.3: 90s
+            signal:  AbortSignal.timeout(UPLOAD_TIMEOUT_MS)
         });
 
         if (!resUpload.ok) {
             let detalhe = `Erro ${resUpload.status}`;
-            try {
-                const e = await resUpload.json();
-                detalhe = e.detail || detalhe;
-            } catch (_) { /* ignora erro de parse */ }
+            try { const e = await resUpload.json(); detalhe = e.detail || detalhe; } catch (_) {}
             throw new Error(detalhe);
         }
 
         const jobData = await resUpload.json();
         const jobId   = jobData.job_id;
-
         if (!jobId) throw new Error("Servidor não retornou job_id. Tente novamente.");
 
-        // ── PASSO 2: inicia keep-alive e faz polling ───────────────────────
-        // FIX v4.4: ping periódico mantém o Render acordado durante a análise
         _iniciarPing();
         _pollingInicioMs = Date.now();
         const data = await _aguardarJob(jobId);
@@ -559,15 +663,10 @@ async function enviarContrato() {
         if (input) input.value = "";
 
     } catch (err) {
-        _pararPing();   // FIX v4.4: para o ping em caso de erro
-        console.error("❌ Upload:", err);
-        // Mensagem de erro contextualizada
+        _pararPing();
         let msg;
         if (err.name === "TimeoutError" || err.message?.includes("timeout")) {
-            msg = (
-                "O servidor demorou para responder (pode estar acordando do modo inativo). " +
-                "Aguarde 30 segundos e tente novamente."
-            );
+            msg = "O servidor demorou para responder. Aguarde 30 segundos e tente novamente.";
         } else if (err.message?.includes("Failed to fetch") || err.message?.includes("NetworkError")) {
             msg = "Erro de conexão com o servidor. Verifique sua internet e tente novamente.";
         } else {
@@ -578,52 +677,23 @@ async function enviarContrato() {
     }
 }
 
-/**
- * Polling: consulta /job/{jobId} até status "done" ou "error".
- *
- * FIX v4.4 — CORREÇÃO PRINCIPAL:
- *
- * 404 com retry automático (era o bug que causava "servidor reiniciou"):
- *   Antes: 1 único 404 → erro fatal imediato → usuário via a mensagem de erro.
- *   Agora: 404 → aguarda ESPERA_COLD_START_MS (45s) → tenta novamente.
- *          Só após MAX_RETRY_404 (3) tentativas consecutivas de 404 é erro fatal.
- *   Por quê: o Render reinicia em ~30s. Durante esse boot, o /job retorna 404
- *            mesmo que o job ainda exista no SQLite (arquivo persiste no disco).
- *            Aguardar 45s cobre o cold start completamente.
- *
- * Keep-alive integrado:
- *   O ping periódico (_iniciarPing) já está rodando paralelamente.
- *   Ele evita que o Render durma durante análises de 3-8 minutos.
- *   O _aguardarJob apenas para o ping quando termina (done/error/timeout).
- */
 async function _aguardarJob(jobId) {
-    const TEMPO_TOTAL_ESPERADO_MS = 600_000;   // 10 minutos (= GEMINI_TIMEOUT no backend)
-    let contador404 = 0;   // FIX v4.4: conta 404 consecutivos
+    const TEMPO_TOTAL_ESPERADO_MS = 600_000;
+    let contador404 = 0;
 
     for (let tentativa = 0; tentativa < POLLING_MAX; tentativa++) {
-        // Aguarda o intervalo antes de cada tentativa
         await new Promise(r => setTimeout(r, POLLING_INTERVALO));
 
-        // ── Atualiza feedback visual ──────────────────────────────────
         const decorrido_ms  = Date.now() - _pollingInicioMs;
         const decorrido_min = Math.floor(decorrido_ms / 60_000);
         const decorrido_seg = Math.floor((decorrido_ms % 60_000) / 1000);
-        const tempoStr      = decorrido_min > 0
-            ? `${decorrido_min} min ${decorrido_seg}s`
-            : `${decorrido_seg}s`;
+        const tempoStr      = decorrido_min > 0 ? `${decorrido_min} min ${decorrido_seg}s` : `${decorrido_seg}s`;
 
         let etapaStr;
-        if (decorrido_ms < 5_000) {
-            etapaStr = "📄 Extraindo texto do PDF...";
-        } else if (decorrido_ms < 15_000) {
-            etapaStr = "🔍 Preparando análise...";
-        } else if (contador404 > 0) {
-            // FIX v4.4: feedback informativo durante retry de 404
-            etapaStr = `🔄 Reconectando ao servidor... (tentativa ${contador404}/${MAX_RETRY_404})`;
-        } else {
-            const dots = ".".repeat((tentativa % 3) + 1);
-            etapaStr = `🤖 IA analisando o contrato${dots}`;
-        }
+        if (decorrido_ms < 5_000)       etapaStr = "📄 Extraindo texto do PDF...";
+        else if (decorrido_ms < 15_000) etapaStr = "🔍 Preparando análise...";
+        else if (contador404 > 0)       etapaStr = `🔄 Reconectando ao servidor... (tentativa ${contador404}/${MAX_RETRY_404})`;
+        else                            etapaStr = `🤖 IA analisando o contrato${".".repeat((tentativa % 3) + 1)}`;
 
         const textoEl = document.querySelector(".progress-texto");
         if (textoEl) textoEl.textContent = `${etapaStr} (${tempoStr})`;
@@ -632,7 +702,6 @@ async function _aguardarJob(jobId) {
         const barra = document.getElementById("progressBarFill");
         if (barra) barra.style.width = pct + "%";
 
-        // ── Requisição de polling ─────────────────────────────────────
         let erroFatal = null;
 
         try {
@@ -642,86 +711,33 @@ async function _aguardarJob(jobId) {
             });
 
             if (res.status === 404) {
-                // FIX v4.4: 404 NÃO é fatal imediatamente — Render pode estar reiniciando
                 contador404++;
-                console.warn(
-                    `⚠️ Polling tentativa ${tentativa + 1}: 404 recebido ` +
-                    `(${contador404}/${MAX_RETRY_404}) — servidor pode estar reiniciando...`
-                );
-
                 if (contador404 >= MAX_RETRY_404) {
-                    // Após MAX_RETRY_404 tentativas consecutivas → agora é fatal
-                    erroFatal = new Error(
-                        "O servidor reiniciou durante a análise e o job foi perdido. " +
-                        "Isso pode ocorrer no plano gratuito do Render após longa inatividade. " +
-                        "Aguarde 30 segundos e envie o arquivo novamente."
-                    );
+                    erroFatal = new Error("O servidor reiniciou durante a análise. Aguarde 30s e envie novamente.");
                 } else {
-                    // Ainda tem tentativas — aguarda o cold start completo
                     const textoEl2 = document.querySelector(".progress-texto");
-                    if (textoEl2) {
-                        textoEl2.textContent =
-                            `🔄 Servidor reiniciando, aguardando ${ESPERA_COLD_START_MS / 1000}s... ` +
-                            `(tentativa ${contador404}/${MAX_RETRY_404})`;
-                    }
-                    console.log(`⏳ Aguardando ${ESPERA_COLD_START_MS / 1000}s para cold start...`);
+                    if (textoEl2) textoEl2.textContent = `🔄 Servidor reiniciando, aguardando ${ESPERA_COLD_START_MS / 1000}s... (tentativa ${contador404}/${MAX_RETRY_404})`;
                     await new Promise(r => setTimeout(r, ESPERA_COLD_START_MS));
-                    // Não incrementa tentativa aqui — o loop fará isso automaticamente
                 }
-
             } else if (!res.ok) {
-                // Outro erro HTTP → transitório, continua tentando
-                contador404 = 0;   // reset contador de 404
-                console.warn(
-                    `⚠️ Polling tentativa ${tentativa + 1}/${POLLING_MAX}: ` +
-                    `HTTP ${res.status} — tentando novamente...`
-                );
-
+                contador404 = 0;
             } else {
-                // Resposta OK → reseta contador de 404 e processa
                 contador404 = 0;
                 const job = await res.json();
-
-                if (job.status === "done") {
-                    _pararPing();   // FIX v4.4: para o keep-alive ao concluir
-                    return job.result;
-                }
-
-                if (job.status === "error") {
-                    erroFatal = new Error(
-                        job.error || "Erro interno durante a análise do contrato."
-                    );
-                }
-                // job.status === "processing" → continua normalmente
+                if (job.status === "done")  { _pararPing(); return job.result; }
+                if (job.status === "error") { erroFatal = new Error(job.error || "Erro interno durante a análise."); }
             }
-
         } catch (err) {
-            // Erros de rede transitórios (timeout de fetch, DNS, etc.) → continua
-            contador404 = 0;   // reset — não é 404
-            console.warn(
-                `⚠️ Polling tentativa ${tentativa + 1}/${POLLING_MAX}: ` +
-                `${err.name === "TimeoutError" ? `timeout (${POLLING_TIMEOUT_POR_TENT / 1000}s)` : err.message} ` +
-                `— tentando novamente...`
-            );
+            contador404 = 0;
+            console.warn(`⚠️ Polling tentativa ${tentativa + 1}: ${err.message}`);
         }
 
-        // Lança erro fatal FORA do catch (garante que não seja engolido)
-        if (erroFatal !== null) {
-            _pararPing();   // FIX v4.4: para o keep-alive em caso de erro
-            throw erroFatal;
-        }
+        if (erroFatal !== null) { _pararPing(); throw erroFatal; }
     }
 
-    // Esgotou todas as tentativas
     _pararPing();
-    const totalMin = Math.floor((POLLING_MAX * POLLING_INTERVALO) / 60_000);
-    throw new Error(
-        `Tempo esgotado após ${totalMin} minutos de espera. ` +
-        "Possíveis causas: contrato muito grande ou sobrecarga da API Gemini. " +
-        "Tente novamente em alguns minutos."
-    );
+    throw new Error(`Tempo esgotado após ${Math.floor((POLLING_MAX * POLLING_INTERVALO) / 60_000)} minutos. Tente novamente.`);
 }
-
 
 let _etapaAtual = 0;
 
@@ -743,7 +759,7 @@ function _iniciarProgresso() {
 function _avancarEtapa(indice) {
     return new Promise(resolve => {
         const etapa   = ETAPAS_UPLOAD[indice];
-        const pct     = Math.round(((indice + 1) / ETAPAS_UPLOAD.length) * 18);   // máx 18% nas etapas iniciais
+        const pct     = Math.round(((indice + 1) / ETAPAS_UPLOAD.length) * 18);
         const textoEl = document.querySelector(".progress-texto");
         const barraEl = document.getElementById("progressBarFill");
         if (textoEl) textoEl.textContent = etapa.texto;
@@ -757,7 +773,7 @@ function _avancarEtapaSemEspera(indice) {
     const textoEl = document.querySelector(".progress-texto");
     const barraEl = document.getElementById("progressBarFill");
     if (textoEl) textoEl.textContent = etapa.texto;
-    if (barraEl) barraEl.style.width = "20%";   // FIX v4.3: parte de 20% para o polling crescer até 92%
+    if (barraEl) barraEl.style.width = "20%";
 }
 
 function _finalizarProgresso(mensagem, tipo = "success") {
@@ -803,7 +819,7 @@ async function enviarPergunta() {
 
     const fd = new FormData();
     fd.append("pergunta",    pergunta);
-    fd.append("setor",       setorChatAtivo || "juridico");
+    fd.append("setor",       setorChatAtivo || setoresDisponiveis[0]?.id || "juridico");
     fd.append("contrato_id", contratoId);
 
     try {
@@ -811,17 +827,14 @@ async function enviarPergunta() {
             method:  "POST",
             headers: { Authorization: `Bearer ${usuario.token}` },
             body:    fd,
-            signal:  AbortSignal.timeout(360_000)   // 6 minutos para perguntas em contratos grandes
+            signal:  AbortSignal.timeout(360_000)
         });
 
         document.getElementById("chatLoading")?.remove();
 
         if (!res.ok) {
-            let detalhe = `Erro ${res.status} na resposta do servidor`;
-            try {
-                const e = await res.json();
-                detalhe = e.detail || detalhe;
-            } catch (_) { /* ignora */ }
+            let detalhe = `Erro ${res.status}`;
+            try { const e = await res.json(); detalhe = e.detail || detalhe; } catch (_) {}
             throw new Error(detalhe);
         }
 
@@ -831,13 +844,12 @@ async function enviarPergunta() {
     } catch (err) {
         document.getElementById("chatLoading")?.remove();
         if (err.name === "TimeoutError") {
-            adicionarMensagem("ai", "⏱️ A IA demorou muito para responder. Tente novamente com uma pergunta mais específica.");
+            adicionarMensagem("ai", "⏱️ A IA demorou muito. Tente novamente com uma pergunta mais específica.");
         } else if (err.message?.includes("Failed to fetch")) {
             adicionarMensagem("ai", "❌ Erro de conexão. Verifique sua internet e tente novamente.");
         } else {
             adicionarMensagem("ai", `❌ Erro: ${err.message}`);
         }
-        console.error("❌ Pergunta:", err);
     } finally {
         _enviandoPergunta = false;
         const inp = document.getElementById("perguntaUser");
@@ -887,7 +899,7 @@ function limparChatVisual() {
     salvarEstado();
 }
 
-// ─── BIBLIOTECA COM SKELETON ──────────────────────────────────────────────────
+// ─── BIBLIOTECA ───────────────────────────────────────────────────────────────
 
 async function carregarHistorico() {
     const lista = document.getElementById("listaContratos");
@@ -919,15 +931,11 @@ async function _buscarEExibirContratos() {
     if (!lista) return;
 
     const params = new URLSearchParams();
-
     if (perspectiva.analystId !== null) {
         params.append("analyst_id", perspectiva.analystId);
     } else {
-        if (perspectiva.escopo === "meus") {
-            params.append("analyst_id", usuario.id);
-        }
+        if (perspectiva.escopo === "meus") params.append("analyst_id", usuario.id);
     }
-
     if (setorFiltroAtivo !== "todos") params.append("sector_id", setorFiltroAtivo);
 
     try {
@@ -990,7 +998,7 @@ function renderizarSeletorPerspectiva() {
             return s ? `<span class="setor-visivel-badge" style="color:${s.cor};background:${s.cor}15;border:1px solid ${s.cor}30">
                 ${ic(s.icon)} ${s.nome}
             </span>` : "";
-        }).join("");
+        }).filter(Boolean).join("");
         if (setoresInfo) {
             setoresBadgesHtml = `
             <div class="setores-visiveis-wrap">
@@ -1050,15 +1058,40 @@ async function voltarMinhasPerspectiva() {
 
 // ─── RENDERIZAR CONTRATOS ─────────────────────────────────────────────────────
 
+/**
+ * Tenta encontrar um setor em setoresDisponiveis pelo slug do contrato.
+ * Aceita tanto match exato quanto match parcial (para slugs antigos/novos).
+ */
+function _encontrarSetorContrato(setorSlug) {
+    if (!setorSlug) return setoresDisponiveis[0] || null;
+    const slug = _slugSetor(setorSlug);
+    // 1. match exato por id
+    let s = setoresDisponiveis.find(x => x.id === slug);
+    if (s) return s;
+    // 2. match por nome normalizado
+    s = setoresDisponiveis.find(x => _slugSetor(x.nome) === slug);
+    if (s) return s;
+    // 3. match parcial (para slugs antigos como "gestaocontratos" vs "gestao")
+    s = setoresDisponiveis.find(x => slug.includes(x.id) || x.id.includes(slug));
+    return s || null;
+}
+
 function renderizarContratos(lista) {
     const el = document.getElementById("listaContratos");
     if (!el) return;
 
-    let filtrados = lista.filter(c =>
-        setorFiltroAtivo === "todos"
-            ? usuario.setoresPermitidos.includes((c.setor || "juridico").toLowerCase())
-            : (c.setor || "juridico").toLowerCase() === setorFiltroAtivo
-    );
+    let filtrados = lista.filter(c => {
+        const setorContrato = _slugSetor(c.setor || "");
+        const setorObj = _encontrarSetorContrato(setorContrato);
+        const setorId  = setorObj?.id || setorContrato;
+
+        if (setorFiltroAtivo === "todos") {
+            return usuario.setoresPermitidos.includes(setorId) ||
+                   usuario.isAdmin ||
+                   setoresDisponiveis.some(s => s.id === setorId);
+        }
+        return setorId === setorFiltroAtivo;
+    });
 
     if (!filtrados.length) {
         const msg = perspectiva.analystId !== null
@@ -1071,9 +1104,9 @@ function renderizarContratos(lista) {
 
     el.innerHTML = "";
     filtrados.forEach((c, i) => {
-        const s     = setoresDisponiveis.find(x => x.id === (c.setor || "juridico").toLowerCase());
-        const badge = s
-            ? `<span class="setor-badge-card" data-setor="${s.id}">${ic(s.icon)}${s.nome}</span>`
+        const setorObj = _encontrarSetorContrato(c.setor);
+        const badge = setorObj
+            ? `<span class="setor-badge-card" style="background:${setorObj.cor}18;border-color:${setorObj.cor}40;color:${setorObj.cor}">${ic(setorObj.icon)}${setorObj.nome}</span>`
             : "";
 
         const mostrarAnalista = c.show_analyst && c.analista && c.analista.id;
@@ -1119,11 +1152,16 @@ function filtrarContratos() {
     const termo = input?.value.toLowerCase().trim() || "";
     if (clear) clear.classList.toggle("hidden", !termo);
 
-    let filtrados = todosContratos.filter(c =>
-        setorFiltroAtivo === "todos"
-            ? usuario.setoresPermitidos.includes((c.setor || "juridico").toLowerCase())
-            : (c.setor || "juridico").toLowerCase() === setorFiltroAtivo
-    );
+    let filtrados = todosContratos.filter(c => {
+        const setorContrato = _slugSetor(c.setor || "");
+        const setorObj      = _encontrarSetorContrato(setorContrato);
+        const setorId       = setorObj?.id || setorContrato;
+
+        if (setorFiltroAtivo === "todos") {
+            return usuario.setoresPermitidos.includes(setorId) || usuario.isAdmin;
+        }
+        return setorId === setorFiltroAtivo;
+    });
 
     if (termo) filtrados = filtrados.filter(c =>
         c.nome.toLowerCase().includes(termo) ||

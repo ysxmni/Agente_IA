@@ -1,5 +1,11 @@
 // ════════════════════════════════════════════════════════════════════════════
-//  OPERSAN — admin.js  (zero Lucide — SVGs inline em tudo)
+//  OPERSAN — admin.js  v2.0  (setores dinâmicos — zero Lucide)
+//
+//  MUDANÇAS v2.0:
+//  - SETOR_NOMES hardcoded removido → substituído por _nomePorSlug()
+//  - renderizarSetoresGrid() agora usa allRoles (carregado da API)
+//  - atualizarResumoPerm() usa _nomePorSlug() em vez de SETOR_NOMES[s]
+//  - Toda a lógica de setores é 100% dinâmica
 // ════════════════════════════════════════════════════════════════════════════
 
 const API   = "https://agente-ia-62sa.onrender.com";
@@ -31,34 +37,67 @@ let permTargetsSelecionados = [];
 let permSetoresSelecionados = [];
 let _permCache = { permissoes: [], users: [] };
 
-const SETOR_NOMES = {
-    juridico:        "Jurídico",
-    suprimentos:     "Suprimentos",
-    gestaocontratos: "Gestão de Contratos",
-};
+// ════════════════════════════════════════════════════════════════════════════
+//  HELPERS DE SETOR — DINÂMICOS  (substituem SETOR_NOMES hardcoded)
+// ════════════════════════════════════════════════════════════════════════════
 
-const SETOR_META = {
-    juridico:              { emoji: "⚖️", classe: "juridico" },
-    jurídico:              { emoji: "⚖️", classe: "juridico" },
-    suprimentos:           { emoji: "📦", classe: "suprimentos" },
-    gestaocontratos:       { emoji: "📁", classe: "gestaocontratos" },
-    "gestão de contratos": { emoji: "📁", classe: "gestaocontratos" },
-};
-
+/**
+ * Converte um nome de setor em slug sem acentos/espaços.
+ * "Gestão de Contratos" → "gestaocontratos"
+ */
 function _slugSetor(nome) {
-    return (nome || "").toLowerCase()
+    return (nome || "")
+        .toLowerCase()
+        .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
         .replace(/\s+/g, "")
-        .replace(/[ãâá]/g, "a").replace(/[çc]/g, "c")
-        .replace(/[éêè]/g, "e").replace(/[íî]/g, "i")
-        .replace(/[óôò]/g, "o").replace(/[úû]/g, "u");
+        .replace(/[^a-z0-9]/g, "");
 }
 
-function _metaSetor(nomeRole) {
-    const chave     = nomeRole.toLowerCase();
-    const chaveSlug = _slugSetor(nomeRole);
-    return SETOR_META[chave] || SETOR_META[chaveSlug] || { emoji: "🏢", classe: "" };
+/**
+ * Dado um slug, retorna o nome legível pesquisando em allRoles.
+ * Substitui o antigo SETOR_NOMES[slug].
+ */
+function _nomePorSlug(slug) {
+    const role = allRoles.find(r => _slugSetor(r.name) === slug);
+    return role ? role.name : slug;
 }
 
+/**
+ * Paleta de cores para setores (índice circular).
+ */
+const _SETOR_CORES = [
+    "#3b82f6", "#10b981", "#f59e0b",
+    "#8b5cf6", "#06b6d4", "#ec4899", "#f97316", "#14b8a6"
+];
+
+/**
+ * Emoji/ícone automático baseado no nome do setor.
+ */
+function _emojiSetor(nome) {
+    const s = _slugSetor(nome);
+    if (s.includes("jurid") || s.includes("legal") || s.includes("lei") || s.includes("direito")) return "⚖️";
+    if (s.includes("suprim") || s.includes("compra") || s.includes("estoque") || s.includes("logist")) return "📦";
+    if (s.includes("gestao") || s.includes("contrat") || s.includes("kanban")) return "📁";
+    if (s.includes("financ") || s.includes("contab") || s.includes("fiscal")) return "💼";
+    if (s.includes("ti") || s.includes("tech") || s.includes("inform") || s.includes("sistema")) return "⚙️";
+    if (s.includes("rh") || s.includes("recurs") || s.includes("human") || s.includes("pessoal")) return "👥";
+    return "🏢";
+}
+
+/**
+ * Retorna cor do setor pelo seu índice em allRoles (excluindo admin).
+ */
+function _corSetor(nomeSetor) {
+    const setores = allRoles.filter(r => r.name.toLowerCase() !== "admin");
+    const idx = setores.findIndex(r => _slugSetor(r.name) === _slugSetor(nomeSetor));
+    return _SETOR_CORES[(idx >= 0 ? idx : 0) % _SETOR_CORES.length];
+}
+
+/**
+ * Retorna a classe CSS de cor para o badge do setor.
+ * Mantém compatibilidade com o CSS existente para setores conhecidos,
+ * e para novos setores usa inline style via data-cor.
+ */
 function _classeCorSetor(nome) {
     const slug = _slugSetor(nome);
     if (slug.includes("juridic"))                              return "juridico";
@@ -437,9 +476,9 @@ function renderizarPreviewSetores() {
     if (counter) counter.textContent = setores.length;
     if (!setores.length) { container.innerHTML = '<p class="preview-empty">Nenhum setor cadastrado ainda.</p>'; return; }
     container.innerHTML = setores.map(role => {
-        const meta     = _metaSetor(role.name);
+        const emoji    = _emojiSetor(role.name);
         const qtdUsers = allUsers.filter(u => u.roles.some(r => r.id === role.id)).length;
-        return `<div class="preview-sector-card"><div class="preview-sector-icon">${meta.emoji}</div><div class="preview-sector-info"><span class="preview-sector-name">${role.name}</span><span class="preview-sector-count">${qtdUsers} usuário${qtdUsers !== 1 ? "s" : ""}</span></div></div>`;
+        return `<div class="preview-sector-card"><div class="preview-sector-icon">${emoji}</div><div class="preview-sector-info"><span class="preview-sector-name">${role.name}</span><span class="preview-sector-count">${qtdUsers} usuário${qtdUsers !== 1 ? "s" : ""}</span></div></div>`;
     }).join("");
 }
 
@@ -675,22 +714,35 @@ function renderizarPainelDireito(viewerId) {
     atualizarResumoPerm();
 }
 
+// ════════════════════════════════════════════════════════════════════════════
+//  renderizarSetoresGrid — DINÂMICO (usa allRoles, não hardcoded)
+// ════════════════════════════════════════════════════════════════════════════
+
 function renderizarSetoresGrid() {
     const grid = document.getElementById("perm-setores-grid");
     if (!grid) return;
 
-    const setoresSistema = [
-        { slug: "juridico",        nome: "Jurídico",            icon: "⚖️",  cor: "#3b82f6" },
-        { slug: "suprimentos",     nome: "Suprimentos",         icon: "📦",  cor: "#10b981" },
-        { slug: "gestaocontratos", nome: "Gestão de Contratos", icon: "📁",  cor: "#f59e0b" },
-    ];
+    // Obtém todos os setores reais (exclui "admin")
+    const setores = allRoles
+        .filter(r => r.name.toLowerCase() !== "admin")
+        .map((r, i) => ({
+            slug:  _slugSetor(r.name),
+            nome:  r.name,
+            emoji: _emojiSetor(r.name),
+            cor:   _SETOR_CORES[i % _SETOR_CORES.length],
+        }));
 
-    grid.innerHTML = setoresSistema.map(s => {
+    if (!setores.length) {
+        grid.innerHTML = `<p style="color:var(--text-secondary);font-size:.82rem;padding:.5rem">Nenhum setor cadastrado.</p>`;
+        return;
+    }
+
+    grid.innerHTML = setores.map(s => {
         const ativo = permSetoresSelecionados.includes(s.slug);
         return `
         <div class="perm-setor-item ${ativo ? "ativo" : ""}" id="setor-item-${s.slug}">
             <div class="perm-setor-header">
-                <span class="perm-setor-icon">${s.icon}</span>
+                <span class="perm-setor-icon">${s.emoji}</span>
                 <div class="perm-setor-info-wrap">
                     <span class="perm-setor-nome">${s.nome}</span>
                     <span class="perm-setor-desc">Ver todos os contratos do setor</span>
@@ -774,6 +826,7 @@ function toggleTarget(targetId) {
     atualizarResumoPerm();
 }
 
+// ── atualizarResumoPerm — usa _nomePorSlug() (dinâmico) ─────────────────────
 function atualizarResumoPerm() {
     const resumo = document.getElementById("perm-resumo");
     if (!resumo) return;
@@ -785,7 +838,8 @@ function atualizarResumoPerm() {
     }
     const partes = [];
     if (nS > 0) {
-        const nomesSetores = permSetoresSelecionados.map(s => SETOR_NOMES[s] || s).join(", ");
+        // _nomePorSlug busca em allRoles — funciona para qualquer setor criado
+        const nomesSetores = permSetoresSelecionados.map(s => _nomePorSlug(s)).join(", ");
         partes.push(`<strong style="color:var(--amber)">${nS} setor${nS > 1 ? "es" : ""}</strong> (${nomesSetores})`);
     }
     if (nU > 0) partes.push(`<strong style="color:var(--accent-blue)">${nU} colega${nU > 1 ? "s" : ""}</strong>`);
