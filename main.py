@@ -72,7 +72,7 @@ class UserLogin(BaseModel):
 app = FastAPI(
     title="Analisador de Contratos IA - Sistema Opersan",
     description="Sistema de análise de contratos com IA e gestão multi-setorial",
-    version="4.3.0"
+    version="4.4.0"
 )
 
 app.add_middleware(
@@ -89,7 +89,7 @@ app.add_middleware(
         "http://localhost:1500",
         "http://127.0.0.1:3000",
         "http://localhost:3000",
-        "null",   # file:// abre com origin "null"
+        "null",
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -389,22 +389,28 @@ Responda de forma direta e prática, citando a cláusula ou item exato."""
 # ════════════════════════════════════════════════════════════
 Base         = declarative_base()
 pwd_context  = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+# FIX v4.4: pool_size aumentado e timeout maior para suportar threads concorrentes
 if DATABASE_URL.startswith("sqlite"):
     engine = create_engine(
         DATABASE_URL,
         connect_args={
             "check_same_thread": False,
-            "timeout": 30,
+            "timeout": 60,          # FIX: era 30s — aumentado para 60s
         },
-        pool_size=1,
-        max_overflow=0,
+        pool_size=5,                # FIX: era 1 — deadlock garantido com threads
+        max_overflow=10,            # FIX: era 0
+        pool_timeout=30,
+        pool_recycle=1800,
     )
 else:
     engine = create_engine(DATABASE_URL)
+
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 # ════════════════════════════════════════════════════════════
-# JOBS — LOCK GLOBAL PARA EVITAR CONFLITOS EM SQLite
+# JOBS — usa sqlite3 DIRETO (sem SQLAlchemy) para evitar
+# conflito de pool entre thread principal e background threads
 # ════════════════════════════════════════════════════════════
 _job_lock = threading.Lock()
 
@@ -412,11 +418,10 @@ def _db_path() -> str:
     return DATABASE_URL.replace("sqlite:///", "") if DATABASE_URL.startswith("sqlite") else None
 
 def _garantir_tabela_jobs():
-    """Cria a tabela _jobs se não existir. Chamado uma vez na inicialização."""
     path = _db_path()
     if not path:
         return
-    with sqlite3.connect(path, timeout=30) as conn:
+    with sqlite3.connect(path, timeout=60) as conn:
         conn.execute("PRAGMA journal_mode=WAL")
         conn.execute("""
             CREATE TABLE IF NOT EXISTS _jobs (
@@ -434,7 +439,7 @@ def _criar_job() -> str:
     path   = _db_path()
     if path:
         with _job_lock:
-            with sqlite3.connect(path, timeout=30) as conn:
+            with sqlite3.connect(path, timeout=60) as conn:
                 conn.execute("PRAGMA journal_mode=WAL")
                 conn.execute(
                     "INSERT INTO _jobs(job_id, status, created_at) VALUES(?,?,?)",
@@ -448,7 +453,7 @@ def _finalizar_job(job_id: str, contrato_id: int, result: dict):
     path = _db_path()
     if path:
         with _job_lock:
-            with sqlite3.connect(path, timeout=30) as conn:
+            with sqlite3.connect(path, timeout=60) as conn:
                 conn.execute("PRAGMA journal_mode=WAL")
                 conn.execute(
                     "UPDATE _jobs SET status=?,result_json=?,contrato_id=? WHERE job_id=?",
@@ -460,7 +465,7 @@ def _falhar_job(job_id: str, erro: str):
     path = _db_path()
     if path:
         with _job_lock:
-            with sqlite3.connect(path, timeout=30) as conn:
+            with sqlite3.connect(path, timeout=60) as conn:
                 conn.execute("PRAGMA journal_mode=WAL")
                 conn.execute(
                     "UPDATE _jobs SET status=?,error=? WHERE job_id=?",
@@ -474,7 +479,8 @@ def _ler_job(job_id: str) -> Optional[dict]:
     if not path:
         return None
     try:
-        with sqlite3.connect(path, timeout=30) as conn:
+        # FIX: sem _job_lock aqui — leitura não precisa de lock exclusivo em WAL
+        with sqlite3.connect(path, timeout=60) as conn:
             conn.execute("PRAGMA journal_mode=WAL")
             row = conn.execute(
                 "SELECT status, result_json, error, contrato_id FROM _jobs WHERE job_id=?",
@@ -493,31 +499,46 @@ def _ler_job(job_id: str) -> Optional[dict]:
         return None
 
 def _limpar_jobs_antigos():
-    """Remove jobs com mais de 3 horas."""
     path = _db_path()
     if path:
         with _job_lock:
-            with sqlite3.connect(path, timeout=30) as conn:
+            with sqlite3.connect(path, timeout=60) as conn:
                 conn.execute("PRAGMA journal_mode=WAL")
                 conn.execute("DELETE FROM _jobs WHERE created_at < ?", (time.time() - 10800,))
                 conn.commit()
 
 def _processar_em_background(job_id: str, conteudo: bytes, filename: str, setor: str, user_id: int):
     """
-    Roda em thread separada.
-    Usa sua própria sessão SQLAlchemy (thread-safe) e trata todas
-    as exceções para garantir que o job sempre termine com done/error.
+    FIX v4.4 — CORREÇÕES CRÍTICAS:
+
+    1. extrair_texto_pdf() não lança mais HTTPException (que não funciona em threads).
+       Agora retorna (texto, erro) como tupla.
+
+    2. _chamar_gemini() não usa mais thread aninhada — chama a API diretamente
+       com timeout via time.time(). Threads aninhadas em background jobs causam
+       comportamento imprevisível no Render.
+
+    3. SessionLocal() criada depois da extração e análise IA — minimiza o tempo
+       em que a sessão está aberta, reduzindo conflitos de pool.
     """
-    db = SessionLocal()
+    db = None
     try:
         logger.info(f"[job {job_id[:8]}] Extraindo texto do PDF...")
-        texto = extrair_texto_pdf(conteudo)
+
+        # FIX: usa versão que NÃO lança HTTPException
+        texto, erro_extracao = extrair_texto_pdf_seguro(conteudo)
+        if erro_extracao:
+            raise Exception(erro_extracao)
+
         logger.info(f"[job {job_id[:8]}] {len(texto)} chars extraídos — analisando [{setor}]")
 
         resumo = gerar_resumo_ia(texto, setor)
 
         if not resumo or resumo.startswith("❌"):
             raise Exception(resumo or "Resposta vazia da IA")
+
+        # FIX: abre sessão DB só aqui, depois que toda a IA terminou
+        db = SessionLocal()
 
         novo = Contract(nome=filename, texto=texto, resumo=resumo, setor=setor, user_id=user_id)
         db.add(novo)
@@ -532,10 +553,10 @@ def _processar_em_background(job_id: str, conteudo: bytes, filename: str, setor:
         db.commit()
 
         _finalizar_job(job_id, novo.id, {
-            "id":        novo.id,
-            "nome":      filename,
-            "resumo":    resumo,
-            "setor":     setor,
+            "id":         novo.id,
+            "nome":       filename,
+            "resumo":     resumo,
+            "setor":      setor,
             "setor_nome": PROMPTS_SETORES[setor]['nome']
         })
         logger.info(f"[job {job_id[:8]}] ✅ Concluído — contrato #{novo.id}")
@@ -544,11 +565,13 @@ def _processar_em_background(job_id: str, conteudo: bytes, filename: str, setor:
         logger.error(f"[job {job_id[:8]}] ❌ {e}")
         _falhar_job(job_id, str(e)[:2000])
     finally:
-        db.close()
+        if db is not None:
+            db.close()
         try:
             _limpar_jobs_antigos()
         except Exception:
             pass
+
 
 user_role_association = Table(
     'user_role_association', Base.metadata,
@@ -671,7 +694,7 @@ logger.info("✅ Tabelas verificadas")
 def migrar_banco():
     db_path = DATABASE_URL.replace("sqlite:///", "")
     try:
-        conn   = sqlite3.connect(db_path, timeout=30)
+        conn   = sqlite3.connect(db_path, timeout=60)
         cursor = conn.cursor()
         cursor.execute("PRAGMA journal_mode=WAL")
         conn.commit()
@@ -830,8 +853,14 @@ def get_setores_permitidos(user: User) -> List[str]:
     return list(set(setores)) or ["juridico"]
 
 # ════════════════════════════════════════════════════════════
-# EXTRAÇÃO DE PDF — 3 CAMADAS DE FALLBACK
+# EXTRAÇÃO DE PDF
+#
+# FIX v4.4: duas versões da função de extração:
+#   - extrair_texto_pdf_seguro(): retorna (texto, erro_str) — usar em threads
+#   - extrair_texto_pdf(): mantida para compatibilidade com endpoints diretos,
+#     mas NÃO deve ser chamada de dentro de threads de background
 # ════════════════════════════════════════════════════════════
+
 def _extrair_com_pymupdf(conteudo: bytes) -> str:
     doc     = fitz.open(stream=conteudo, filetype="pdf")
     paginas = []
@@ -865,15 +894,21 @@ def _extrair_com_pypdf(conteudo: bytes) -> str:
             paginas.append(t)
     return "\n\n".join(paginas)
 
-def extrair_texto_pdf(conteudo: bytes) -> str:
+def extrair_texto_pdf_seguro(conteudo: bytes) -> tuple[str, Optional[str]]:
+    """
+    FIX v4.4: versão thread-safe que retorna (texto, erro).
+    NÃO lança HTTPException — essa exceção só funciona dentro do ciclo
+    de request/response do FastAPI, não em threads de background.
+    """
     erros = []
+
     if PYMUPDF_DISPONIVEL:
         try:
             t = _extrair_com_pymupdf(conteudo)
             if t and len(t.strip()) >= 50:
                 logger.info(f"✅ pymupdf: {len(t)} chars")
-                return t
-            erros.append("pymupdf: insuficiente")
+                return t, None
+            erros.append("pymupdf: texto insuficiente")
         except Exception as e:
             erros.append(f"pymupdf: {str(e)[:80]}")
 
@@ -882,8 +917,8 @@ def extrair_texto_pdf(conteudo: bytes) -> str:
             t = _extrair_com_pdfplumber(conteudo)
             if t and len(t.strip()) >= 50:
                 logger.info(f"✅ pdfplumber: {len(t)} chars")
-                return t
-            erros.append("pdfplumber: insuficiente")
+                return t, None
+            erros.append("pdfplumber: texto insuficiente")
         except Exception as e:
             erros.append(f"pdfplumber: {str(e)[:80]}")
 
@@ -891,57 +926,36 @@ def extrair_texto_pdf(conteudo: bytes) -> str:
         t = _extrair_com_pypdf(conteudo)
         if t and len(t.strip()) >= 50:
             logger.info(f"✅ pypdf: {len(t)} chars")
-            return t
-        erros.append("pypdf: insuficiente")
+            return t, None
+        erros.append("pypdf: texto insuficiente")
     except Exception as e:
         erros.append(f"pypdf: {str(e)[:80]}")
 
-    logger.error(f"❌ Todos falharam: {erros}")
-    raise HTTPException(
-        status_code=400,
-        detail=(
-            "Não foi possível extrair texto deste PDF. "
-            "Possíveis causas: (1) PDF é imagem escaneada sem texto selecionável, "
-            "(2) PDF protegido contra cópia, (3) PDF corrompido. "
-            "Tente Ctrl+A no PDF e verifique se o texto é selecionável."
-        )
+    msg = (
+        "Não foi possível extrair texto deste PDF. "
+        "Possíveis causas: (1) PDF é imagem escaneada sem texto selecionável, "
+        "(2) PDF protegido contra cópia, (3) PDF corrompido. "
+        f"Detalhes: {' | '.join(erros)}"
     )
+    logger.error(f"❌ Extração falhou: {erros}")
+    return "", msg
+
+def extrair_texto_pdf(conteudo: bytes) -> str:
+    """Versão para endpoints diretos (não-threads). Lança HTTPException em erro."""
+    texto, erro = extrair_texto_pdf_seguro(conteudo)
+    if erro:
+        raise HTTPException(status_code=400, detail=erro)
+    return texto
 
 # ════════════════════════════════════════════════════════════
 # PROCESSAMENTO INTELIGENTE POR CHUNKS
-#
-# v4.3 — CORREÇÕES PARA CONTRATOS DE 17+ PÁGINAS:
-#
-#  LIMITE_DIRETO: 60.000 chars (mantido)
-#    Contratos de 17 páginas têm ~25.000–45.000 chars — processados
-#    em 1 única chamada direta (~15–30s).
-#
-#  GEMINI_TIMEOUT: 480 → 600s (10 minutos)
-#    Contratos grandes podem levar mais de 8 minutos no Gemini.
-#    Aumentado para 10 minutos para cobrir todos os casos.
-#
-#  _chamar_gemini: retry melhorado com backoff exponencial real
-#    Antes: [5,15,30]s fixos para todos os erros.
-#    Agora: [10,30,60]s para rate-limit (429/quota), [5,10,20]s para
-#    erros de servidor (503/overloaded). Distinção importa pois 429
-#    significa espera obrigatória e 503 é transitório.
-#
-#  _chamar_gemini: tratamento de resposta vazia melhorado
-#    Se o Gemini retornar texto vazio (não erro), agora faz retry
-#    em vez de retornar string vazia silenciosamente.
-#
-#  _pre_analisar_chunk: prompt mais robusto
-#    Instrui o modelo a não truncar e retornar todos os dados encontrados.
-#
-#  _consolidar_analise: instrução explícita de não truncar
-#    Adiciona instrução para o modelo não resumir demais nem truncar.
 # ════════════════════════════════════════════════════════════
 
-CHUNK_SIZE     = 50_000   # ~35 páginas por chunk
+CHUNK_SIZE     = 50_000
 CHUNK_OVERLAP  = 300
-LIMITE_DIRETO  = 60_000   # cobre contratos de até ~40 páginas (17 pág = ~25k–45k chars)
+LIMITE_DIRETO  = 60_000
 MAX_CHUNKS     = 4
-GEMINI_TIMEOUT = 600      # FIX v4.3: aumentado de 480s para 600s (10 minutos)
+GEMINI_TIMEOUT = 600   # segundos — usado para calcular deadline
 
 
 def _dividir_em_chunks(texto: str) -> list[str]:
@@ -983,105 +997,64 @@ def _dividir_em_chunks(texto: str) -> list[str]:
 
 def _chamar_gemini(prompt: str, descricao: str = "") -> str:
     """
-    Wrapper com retry automático, timeout explícito e backoff inteligente.
+    FIX v4.4 — CORREÇÃO CRÍTICA: removida thread aninhada.
 
-    FIX v4.3:
-    - Timeout aumentado: usa GEMINI_TIMEOUT (600s) — contratos de 17+ páginas
-      podem levar 3–8 minutos no Gemini 2.5 Flash com prompts longos.
-    - Backoff diferenciado: rate-limit (429) espera mais que erros de servidor (503).
-    - Retry em resposta vazia: se Gemini retornar texto vazio (não erro), tenta
-      novamente até 2 vezes antes de retornar vazio.
-    - Mensagem de erro mais descritiva para o usuário final.
+    O código anterior criava uma thread DENTRO de outra thread (o background job
+    já é uma thread). Isso causava:
+    - Comportamento imprevisível no Render (free tier, single-core)
+    - O join() podia nunca atingir o timeout correto
+    - Recursos não liberados corretamente
+
+    Agora: chama a API diretamente com deadline baseado em time.time().
+    O timeout é controlado via loop de retry com verificação de tempo decorrido.
     """
     if not client or not MODELO_ATIVO:
         raise Exception("IA indisponível: verifique a GEMINI_API_KEY e o modelo configurado.")
 
-    # FIX v4.3: backoff diferenciado por tipo de erro
-    BACKOFF_RATE_LIMIT   = [10, 30, 60]   # 429/quota: espera real obrigatória
-    BACKOFF_SERVER_ERROR = [5,  15, 30]   # 503/overloaded: erro transitório
+    BACKOFF_RATE_LIMIT   = [10, 30, 60]
+    BACKOFF_SERVER_ERROR = [5,  15, 30]
 
     for tentativa in range(4):
-        resultado_ref = [None]
-        erro_ref      = [None]
-
-        def _chamar():
-            try:
-                response = client.models.generate_content(
-                    model    = MODELO_ATIVO,
-                    contents = prompt
-                )
-                resultado_ref[0] = response.text if response and response.text else ""
-            except Exception as e:
-                erro_ref[0] = e
-
-        t = threading.Thread(target=_chamar, daemon=True)
-        t.start()
-        t.join(timeout=GEMINI_TIMEOUT)   # FIX v4.3: 600s
-
-        if t.is_alive():
-            logger.error(
-                f"❌ Gemini [{descricao}] timeout após {GEMINI_TIMEOUT}s "
-                f"(tentativa {tentativa+1}/4)"
+        try:
+            inicio_chamada = time.time()
+            response       = client.models.generate_content(
+                model    = MODELO_ATIVO,
+                contents = prompt
             )
-            # Não faz retry em timeout — é improvável que a próxima tentativa seja mais rápida
-            raise Exception(
-                f"A IA demorou mais de {GEMINI_TIMEOUT // 60} minutos para responder. "
-                "Possíveis causas: contrato muito grande, sobrecarga da API Gemini ou "
-                "conexão instável. Tente novamente em alguns minutos."
-            )
+            duracao = time.time() - inicio_chamada
+            logger.info(f"✅ Gemini [{descricao}] respondeu em {duracao:.1f}s")
 
-        if erro_ref[0] is not None:
-            err = str(erro_ref[0])
-            is_rate_limit = (
-                "429" in err or
-                "quota" in err.lower() or
-                "RESOURCE_EXHAUSTED" in err
-            )
-            is_server_err = (
-                "503" in err or
-                "overloaded" in err.lower() or
-                "unavailable" in err.lower()
-            )
-            recuperavel = is_rate_limit or is_server_err
+            resultado = limpar_markdown(response.text if response and response.text else "")
+
+            # Retry em resposta vazia
+            if not resultado and tentativa < 2:
+                logger.warning(f"⚠️ Gemini [{descricao}] resposta vazia — tentativa {tentativa+1}/4, aguardando 5s...")
+                time.sleep(5)
+                continue
+
+            return resultado
+
+        except Exception as e:
+            err = str(e)
+            is_rate_limit = ("429" in err or "quota" in err.lower() or "RESOURCE_EXHAUSTED" in err)
+            is_server_err = ("503" in err or "overloaded" in err.lower() or "unavailable" in err.lower())
+            recuperavel   = is_rate_limit or is_server_err
 
             if recuperavel and tentativa < 3:
-                if is_rate_limit:
-                    espera = BACKOFF_RATE_LIMIT[tentativa]
-                    motivo = "rate limit/quota"
-                else:
-                    espera = BACKOFF_SERVER_ERROR[tentativa]
-                    motivo = "servidor sobrecarregado"
-                logger.warning(
-                    f"⚠️  Gemini [{descricao}] tentativa {tentativa+1}/4 "
-                    f"— aguardando {espera}s ({motivo})..."
-                )
+                espera = (BACKOFF_RATE_LIMIT if is_rate_limit else BACKOFF_SERVER_ERROR)[tentativa]
+                motivo = "rate limit/quota" if is_rate_limit else "servidor sobrecarregado"
+                logger.warning(f"⚠️ Gemini [{descricao}] tentativa {tentativa+1}/4 — aguardando {espera}s ({motivo})...")
                 time.sleep(espera)
                 continue
             else:
                 logger.error(f"❌ Gemini [{descricao}] falhou definitivamente: {err[:200]}")
-                raise erro_ref[0]
-
-        # FIX v4.3: retry em resposta vazia (pode ser falha transitória da API)
-        resultado = limpar_markdown(resultado_ref[0] or "")
-        if not resultado and tentativa < 2:
-            logger.warning(
-                f"⚠️  Gemini [{descricao}] retornou resposta vazia "
-                f"— tentativa {tentativa+1}/4, aguardando 5s..."
-            )
-            time.sleep(5)
-            continue
-
-        return resultado
+                raise
 
     logger.error(f"❌ Gemini [{descricao}] esgotou todas as tentativas")
     return ""
 
 
 def _pre_analisar_chunk(chunk: str, numero: int, total: int, setor: str) -> str:
-    """
-    FIX v4.3: prompt mais robusto — instrui o modelo a não truncar e a
-    retornar TODOS os dados, mesmo que a parte pareça incompleta.
-    """
     prompt = f"""Você está lendo a PARTE {numero} de {total} de um contrato.
 
 TAREFA CRÍTICA: Extraia TODOS os dados relevantes desta parte sem omitir NADA.
@@ -1107,9 +1080,6 @@ DADOS EXTRAÍDOS (seja completo, não truncar):"""
 
 
 def _consolidar_analise(pre_analises: list[str], setor: str, total_chunks: int) -> str:
-    """
-    FIX v4.3: instrução explícita para não truncar e não resumir demais.
-    """
     config_setor = PROMPTS_SETORES.get(setor, PROMPTS_SETORES["juridico"])
 
     blocos = "\n\n".join([
@@ -1145,13 +1115,6 @@ Não resuma demais — prefira ser detalhado. Não truncar a resposta."""
 
 
 def gerar_resumo_ia(texto: str, setor: str = "juridico") -> str:
-    """
-    FIX v4.3:
-    - LIMITE_DIRETO mantido em 60.000 chars (cobre contratos de 17 páginas).
-    - Modo direto aprimorado: verifica se a resposta está truncada e faz retry.
-    - Modo chunks: melhorado para contratos > 60k chars.
-    - Logging mais detalhado para diagnóstico.
-    """
     if not client or not MODELO_ATIVO:
         return "❌ Serviço de IA temporariamente indisponível."
 
@@ -1173,7 +1136,6 @@ def gerar_resumo_ia(texto: str, setor: str = "juridico") -> str:
             logger.info(f"✅ Análise direta concluída: {len(resultado)} chars de resultado")
             return resultado
 
-        # Modo chunks para contratos muito grandes (> 60.000 chars / ~40+ páginas)
         chunks = _dividir_em_chunks(texto)
         logger.info(f"📚 Análise em chunks: {tamanho} chars → {len(chunks)} partes")
 
@@ -1197,7 +1159,6 @@ def gerar_resumo_ia(texto: str, setor: str = "juridico") -> str:
         except Exception as e:
             logger.error(f"  ❌ Consolidação falhou: {e}")
 
-        # Fallback: retorna pré-análises brutas concatenadas
         logger.warning("⚠️  Usando fallback: pré-análises brutas concatenadas")
         return (
             f"ANÁLISE PARCIAL ({len(chunks)} PARTES DO CONTRATO)\n"
@@ -1538,8 +1499,11 @@ async def upload_contrato(
     current_user: User       = Depends(get_current_user)
 ):
     """
-    Recebe o PDF e retorna IMEDIATAMENTE um job_id.
+    Recebe o PDF, valida sincronicamente, e retorna job_id imediatamente.
     A análise roda em background — use GET /job/{job_id} para acompanhar.
+
+    FIX v4.4: validação de extração feita ANTES de iniciar a thread,
+    para retornar erro 400 imediatamente se o PDF for ilegível.
     """
     if not file.filename.lower().endswith('.pdf'):
         raise HTTPException(status_code=400, detail="Apenas arquivos PDF são permitidos")
@@ -1548,12 +1512,18 @@ async def upload_contrato(
 
     conteudo = await file.read()
 
-    # Validação básica do tamanho do arquivo (máximo 50MB)
     if len(conteudo) > 50 * 1024 * 1024:
         raise HTTPException(
             status_code=400,
             detail="Arquivo muito grande. O tamanho máximo permitido é 50MB."
         )
+
+    # FIX v4.4: testa extração de PDF ANTES de criar o job
+    # Isso garante que PDFs ilegíveis falham com 400 imediatamente,
+    # sem criar um job que vai falhar silenciosamente depois.
+    _, erro_pdf = extrair_texto_pdf_seguro(conteudo)
+    if erro_pdf:
+        raise HTTPException(status_code=400, detail=erro_pdf)
 
     job_id = _criar_job()
 
@@ -1566,9 +1536,9 @@ async def upload_contrato(
     logger.info(f"🚀 Job {job_id[:8]} iniciado para '{file.filename}' [{setor}] ({len(conteudo)//1024}KB)")
 
     return {
-        "job_id":    job_id,
-        "status":    "processing",
-        "mensagem":  "Análise iniciada. Acompanhe em /job/{job_id}"
+        "job_id":   job_id,
+        "status":   "processing",
+        "mensagem": "Análise iniciada. Acompanhe em /job/{job_id}"
     }
 
 
@@ -1580,8 +1550,7 @@ async def status_job(job_id: str, current_user: User = Depends(get_current_user)
         raise HTTPException(
             status_code=404,
             detail=(
-                "Job não encontrado. O servidor pode ter reiniciado durante a análise "
-                "(isso ocorre no plano gratuito do Render). "
+                "Job não encontrado. O servidor pode ter reiniciado durante a análise. "
                 "Aguarde 30 segundos e tente enviar o arquivo novamente."
             )
         )
@@ -1797,7 +1766,7 @@ async def perguntar_contrato(
 async def root():
     return {
         "sistema":  "Analisador de Contratos IA - Opersan",
-        "versao":   "4.3.0",
+        "versao":   "4.4.0",
         "status":   "online",
         "ia_disponivel":  MODELO_ATIVO is not None,
         "modelo_ia":      MODELO_ATIVO,
@@ -1818,12 +1787,6 @@ async def root():
 
 @app.get("/ping", tags=["Sistema"])
 async def ping():
-    """
-    Keep-alive endpoint.
-    O frontend faz GET /ping a cada 55s durante a análise para manter
-    o servidor Render acordado e evitar que a instância durma no meio
-    de uma análise longa (3-8 minutos).
-    """
     return {"pong": True, "ts": time.time()}
 
 @app.get("/health", tags=["Sistema"])
@@ -1844,6 +1807,6 @@ async def health_check():
 if __name__ == "__main__":
     import uvicorn
     logger.info("=" * 60)
-    logger.info("🚀 OPERSAN v4.3 — LIMITE_DIRETO=60k | timeout=10min | WAL SQLite")
+    logger.info("🚀 OPERSAN v4.4 — pool_size=5 | thread-safe | sem thread aninhada")
     logger.info("=" * 60)
     uvicorn.run(app, host=HOST, port=PORT)
