@@ -12,10 +12,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from pypdf import PdfReader
 import logging
 
-# ════════════════════════════════════════════════════════════
-# IMPORTAÇÕES PARA EXTRAÇÃO ROBUSTA DE PDF
-# pip install pymupdf pdfplumber
-# ════════════════════════════════════════════════════════════
 try:
     import fitz
     PYMUPDF_DISPONIVEL = True
@@ -44,57 +40,37 @@ from dotenv import load_dotenv
 import os
 import json
 
-# ════════════════════════════════════════════════════════════
-# VARIÁVEIS DE AMBIENTE
-# ════════════════════════════════════════════════════════════
 load_dotenv()
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 DATABASE_URL   = os.getenv("DATABASE_URL", "sqlite:///contratos_v2.db")
 HOST           = os.getenv("HOST", "0.0.0.0")
 PORT           = int(os.getenv("PORT", 8000))
 
-# ════════════════════════════════════════════════════════════
-# LOGGING
-# ════════════════════════════════════════════════════════════
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 logger.info(f"pymupdf: {PYMUPDF_DISPONIVEL} | pdfplumber: {PDFPLUMBER_DISPONIVEL}")
 
-# ════════════════════════════════════════════════════════════
-# OAUTH2
-# ════════════════════════════════════════════════════════════
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token", auto_error=False)
 
 class UserLogin(BaseModel):
     username: str
     password: str
 
-# ════════════════════════════════════════════════════════════
-# FASTAPI
-# ════════════════════════════════════════════════════════════
 app = FastAPI(
     title="Analisador de Contratos IA - Sistema Opersan",
     description="Sistema de análise de contratos com IA e gestão multi-setorial",
-    version="4.6.0"
+    version="4.7.0"
 )
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "https://ysxmni.github.io",
-        "http://127.0.0.1:5500",
-        "http://localhost:5500",
-        "http://127.0.0.1:5501",
-        "http://localhost:5501",
-        "http://127.0.0.1:8080",
-        "http://localhost:8080",
-        "http://127.0.0.1:1500",
-        "http://localhost:1500",
-        "http://127.0.0.1:3000",
-        "http://localhost:3000",
+        "http://127.0.0.1:5500", "http://localhost:5500",
+        "http://127.0.0.1:5501", "http://localhost:5501",
+        "http://127.0.0.1:8080", "http://localhost:8080",
+        "http://127.0.0.1:1500", "http://localhost:1500",
+        "http://127.0.0.1:3000", "http://localhost:3000",
         "null",
     ],
     allow_credentials=True,
@@ -102,18 +78,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ════════════════════════════════════════════════════════════
-# GEMINI — INICIALIZAÇÃO
-# ════════════════════════════════════════════════════════════
 if not GEMINI_API_KEY:
     logger.error("❌ GEMINI_API_KEY não encontrada no .env!")
 
 MODELOS_PREFERENCIA = [
-    'gemini-2.5-flash-lite',
-    'gemini-2.5-flash',
-    'gemini-2.0-flash',
-    'gemini-flash-lite-latest',
-    'gemini-flash-latest',
+    'gemini-2.5-flash-lite', 'gemini-2.5-flash', 'gemini-2.0-flash',
+    'gemini-flash-lite-latest', 'gemini-flash-latest',
 ]
 
 client       = None
@@ -132,18 +102,16 @@ try:
     except Exception as list_err:
         logger.warning(f"⚠️  Não foi possível listar modelos ({list_err}). Assumindo: {MODELOS_PREFERENCIA[0]}")
         MODELO_ATIVO = MODELOS_PREFERENCIA[0]
-
     if not MODELO_ATIVO:
         MODELO_ATIVO = MODELOS_PREFERENCIA[0]
         logger.warning(f"⚠️  Nenhum modelo encontrado. Usando fallback: {MODELO_ATIVO}")
-
 except Exception as e:
     logger.error(f"❌ Gemini: {e}")
-    client       = None
+    client = None
     MODELO_ATIVO = None
 
 # ════════════════════════════════════════════════════════════
-# PROMPTS ESPECIALIZADOS POR SETOR (originais completos)
+# PROMPTS ESPECIALIZADOS POR SETOR (3 fixos + geração dinâmica)
 # ════════════════════════════════════════════════════════════
 PROMPTS_SETORES = {
     "juridico": {
@@ -209,7 +177,6 @@ ANÁLISE JURÍDICA DO CONTRATO
 
 CONTRATO A ANALISAR:
 {texto}""",
-
         "perguntas": """Você é um assistente jurídico especializado em contratos.
 
 REGRAS:
@@ -289,7 +256,6 @@ ANÁLISE DE SUPRIMENTOS E COMPRAS
 
 CONTRATO A ANALISAR:
 {texto}""",
-
         "perguntas": """Você é um especialista em compras e gestão de suprimentos.
 
 REGRAS:
@@ -371,7 +337,6 @@ ANÁLISE DE GESTÃO OPERACIONAL
 
 CONTRATO A ANALISAR:
 {texto}""",
-
         "perguntas": """Você é um especialista em gestão operacional de contratos.
 
 REGRAS:
@@ -390,24 +355,126 @@ Responda de forma direta e prática, citando a cláusula ou item exato."""
     }
 }
 
+
+def _slug_setor(nome: str) -> str:
+    """Converte nome de setor em slug (sem acentos, sem espaços, minúsculas)."""
+    slug = nome.lower()
+    for a, b in [("ã","a"),("â","a"),("á","a"),("à","a"),("ä","a"),
+                 ("ê","e"),("é","e"),("è","e"),("ë","e"),
+                 ("î","i"),("í","i"),("ì","i"),("ï","i"),
+                 ("õ","o"),("ô","o"),("ó","o"),("ò","o"),("ö","o"),
+                 ("û","u"),("ú","u"),("ù","u"),("ü","u"),
+                 ("ç","c"),("ñ","n")]:
+        slug = slug.replace(a, b)
+    slug = re.sub(r'[^a-z0-9]', '', slug)
+    return slug
+
+
+def _get_config_setor(setor_slug: str) -> dict:
+    """
+    Retorna a configuração do setor. Se não existir em PROMPTS_SETORES,
+    gera um prompt genérico mas especializado com o nome do setor.
+    NUNCA retorna None — garante que qualquer setor criado dinamicamente funciona.
+    """
+    if setor_slug in PROMPTS_SETORES:
+        return PROMPTS_SETORES[setor_slug]
+
+    # Tenta encontrar por slug parcial (ex: "financeiro" encontra "financeiro")
+    for key, config in PROMPTS_SETORES.items():
+        if key in setor_slug or setor_slug in key:
+            logger.info(f"⚡ Setor '{setor_slug}' mapeado para '{key}' por similaridade")
+            return config
+
+    # Gera prompt genérico especializado para o setor
+    nome_legivel = setor_slug.replace("-", " ").replace("_", " ").title()
+    logger.info(f"⚡ Gerando prompt dinâmico para setor: '{setor_slug}' ({nome_legivel})")
+    return {
+        "nome": nome_legivel,
+        "icon": "briefcase",
+        "cor":  "#8b5cf6",
+        "resumo": f"""Você é um especialista em análise de contratos para o setor de {nome_legivel}.
+
+════════════════════════════════════════════
+REGRAS ABSOLUTAS — LEIA ANTES DE COMEÇAR
+════════════════════════════════════════════
+1. Extraia SOMENTE informações que estejam literalmente escritas no contrato abaixo.
+2. Após cada informação, indique entre colchetes a origem exata: [Cláusula X], [Item Y.Z], [Preâmbulo], etc.
+3. Se uma informação NÃO estiver no contrato, escreva: "Não consta no contrato."
+4. NUNCA especule ou invente informações não presentes no texto.
+
+════════════════════════════════════════════
+ESTRUTURA OBRIGATÓRIA DO RESUMO
+════════════════════════════════════════════
+
+ANÁLISE DO CONTRATO — SETOR: {nome_legivel.upper()}
+════════════════════════════════════════════
+
+1. PARTES CONTRATANTES
+   - Contratante: [nome completo, CNPJ, endereço e representante legal + cite seção]
+   - Contratado: [nome completo, CNPJ, endereço e representante legal + cite seção]
+
+2. OBJETO DO CONTRATO
+   - Descrição completa: [transcreva ou resuma fielmente + cite cláusula]
+
+3. PRAZOS E VIGÊNCIA
+   - Vigência: [transcreva + cite cláusula, ou "Não consta no contrato."]
+   - Prazo de mobilização/início: [transcreva + cite cláusula, ou "Não consta no contrato."]
+
+4. VALORES E CONDIÇÕES FINANCEIRAS
+   - Valor total: [valor exato + cite cláusula, ou "Não consta no contrato."]
+   - Forma de pagamento: [conforme contrato + cite cláusula, ou "Não consta no contrato."]
+   - Reajuste: [conforme contrato + cite cláusula, ou "Não consta no contrato."]
+
+5. OBRIGAÇÕES PRINCIPAIS
+   Do Contratante (cite cada obrigação com sua cláusula):
+   Do Contratado (cite cada obrigação com sua cláusula):
+
+6. PENALIDADES E RESCISÃO
+   - Multas/penalidades: [transcreva + cite cláusula, ou "Não consta no contrato."]
+   - Hipóteses de rescisão: [liste + cite cláusula, ou "Não consta no contrato."]
+
+7. INFORMAÇÕES RELEVANTES PARA O SETOR DE {nome_legivel.upper()}
+   Liste todos os pontos específicos relevantes para este setor encontrados no contrato [cite cláusula].
+
+8. RISCOS IDENTIFICADOS
+   Para cada risco: descrição, trecho de origem [Cláusula X], nível ALTO/MÉDIO/BAIXO.
+
+9. PONTOS SEM INFORMAÇÃO NO CONTRATO
+   Liste todos os campos não encontrados no texto.
+
+════════════════════════════════════════════
+
+CONTRATO A ANALISAR:
+{{texto}}""",
+        "perguntas": f"""Você é um especialista em contratos para o setor de {nome_legivel}.
+
+REGRAS:
+1. Responda SOMENTE com base no texto do contrato fornecido abaixo.
+2. Para cada informação, cite exatamente: [Cláusula X] ou [Item Y.Z].
+3. Se a resposta NÃO estiver no contrato: "Essa informação não consta no contrato analisado."
+4. NUNCA especule. Seja direto e objetivo.
+
+CONTRATO:
+{{contexto}}
+
+PERGUNTA:
+{{pergunta}}
+
+Responda citando a cláusula exata de cada informação."""
+    }
+
+
 # ════════════════════════════════════════════════════════════
 # BANCO DE DADOS
 # ════════════════════════════════════════════════════════════
 Base        = declarative_base()
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-# FIX v4.5: pool_size=5 evita deadlock com threads concorrentes
 if DATABASE_URL.startswith("sqlite"):
     engine = create_engine(
         DATABASE_URL,
-        connect_args={
-            "check_same_thread": False,
-            "timeout": 60,
-        },
-        pool_size=5,
-        max_overflow=10,
-        pool_timeout=30,
-        pool_recycle=1800,
+        connect_args={"check_same_thread": False, "timeout": 60},
+        pool_size=5, max_overflow=10, pool_timeout=30, pool_recycle=1800,
     )
 else:
     engine = create_engine(DATABASE_URL)
@@ -480,39 +547,19 @@ class UserVisibilityPermission(Base):
     viewer      = relationship("User", foreign_keys=[viewer_id], back_populates="can_see")
     target      = relationship("User", foreign_keys=[target_id])
 
-# ════════════════════════════════════════════════════════════
-# TABELA DE JOBS — PERSISTIDA NO BANCO PRINCIPAL (FIX v4.5)
-#
-# PROBLEMA RAIZ DO BUG 404:
-#   O Render free tier reinicia o processo durante análises longas.
-#   Na versão anterior, os jobs ficavam numa tabela _jobs criada com
-#   sqlite3 direto usando caminho relativo — após o restart, o path
-#   resolvido era diferente do SQLAlchemy, fazendo _ler_job retornar
-#   None e o endpoint /job/{id} retornar 404.
-#
-# SOLUÇÃO:
-#   Jobs agora são um modelo SQLAlchemy (AnalysisJob) no mesmo banco
-#   e engine do resto da aplicação. Mesmo pool, mesmo arquivo .db,
-#   zero ambiguidade de path. Restart não apaga mais o job.
-# ════════════════════════════════════════════════════════════
-
 class AnalysisJob(Base):
     __tablename__ = 'analysis_jobs'
     job_id      = Column(String,  primary_key=True, index=True)
-    status      = Column(String,  default='processing')   # processing | done | error
+    status      = Column(String,  default='processing')
     result_json = Column(Text,    nullable=True)
     error       = Column(Text,    nullable=True)
     contrato_id = Column(Integer, nullable=True)
     user_id     = Column(Integer, ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
     created_at  = Column(Float,   default=time.time)
 
-# Cria todas as tabelas (incluindo analysis_jobs)
 Base.metadata.create_all(bind=engine)
 logger.info("✅ Tabelas verificadas (incluindo analysis_jobs)")
 
-# ════════════════════════════════════════════════════════════
-# MIGRAÇÃO — garante colunas novas em bancos já existentes
-# ════════════════════════════════════════════════════════════
 def migrar_banco():
     if not DATABASE_URL.startswith("sqlite"):
         return
@@ -522,14 +569,10 @@ def migrar_banco():
         cursor = conn.cursor()
         cursor.execute("PRAGMA journal_mode=WAL")
         conn.commit()
-
-        # roles.description
         cursor.execute("PRAGMA table_info(roles)")
         if "description" not in [r[1] for r in cursor.fetchall()]:
             cursor.execute("ALTER TABLE roles ADD COLUMN description TEXT DEFAULT ''")
             conn.commit()
-
-        # user_visibility_permissions
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS user_visibility_permissions (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -548,7 +591,6 @@ def migrar_banco():
         if "sector_slug" not in cols:
             cursor.execute("ALTER TABLE user_visibility_permissions ADD COLUMN sector_slug TEXT")
             conn.commit()
-
         conn.close()
         logger.info("✅ Migração concluída")
     except Exception as e:
@@ -569,16 +611,11 @@ def create_default_roles_and_admin():
             if not db.query(Role).filter(Role.name == nome).first():
                 db.add(Role(name=nome, description=desc))
         db.commit()
-
         admin_username = "admin@opersan.com.br"
         if not db.query(User).filter(User.username == admin_username).first():
             admin_role = db.query(Role).filter(Role.name == "Admin").first()
-            u = User(
-                username        = admin_username,
-                name            = "Administrador",
-                hashed_password = hash_password("admin123"),
-                role            = 'admin'
-            )
+            u = User(username=admin_username, name="Administrador",
+                     hashed_password=hash_password("admin123"), role='admin')
             if admin_role:
                 u.roles.append(admin_role)
             db.add(u)
@@ -592,9 +629,6 @@ def create_default_roles_and_admin():
 
 create_default_roles_and_admin()
 
-# ════════════════════════════════════════════════════════════
-# DEPENDENCY INJECTION
-# ════════════════════════════════════════════════════════════
 def get_db():
     db = SessionLocal()
     try:
@@ -630,19 +664,14 @@ async def get_current_admin_user(
     return user
 
 # ════════════════════════════════════════════════════════════
-# OPERAÇÕES DE JOB — via SQLAlchemy (mesmo pool, zero conflito)
+# OPERAÇÕES DE JOB
 # ════════════════════════════════════════════════════════════
-
 def _criar_job(user_id: int) -> str:
     job_id = str(uuid.uuid4())
     db = SessionLocal()
     try:
-        db.add(AnalysisJob(
-            job_id     = job_id,
-            status     = "processing",
-            user_id    = user_id,
-            created_at = time.time()
-        ))
+        db.add(AnalysisJob(job_id=job_id, status="processing",
+                           user_id=user_id, created_at=time.time()))
         db.commit()
     finally:
         db.close()
@@ -690,7 +719,7 @@ def _ler_job(job_id: str) -> Optional[dict]:
 def _limpar_jobs_antigos():
     db = SessionLocal()
     try:
-        limite = time.time() - 10800  # 3 horas
+        limite = time.time() - 10800
         db.query(AnalysisJob).filter(AnalysisJob.created_at < limite).delete()
         db.commit()
     except Exception:
@@ -732,37 +761,35 @@ def is_admin_user(user: User) -> bool:
     return (user.role.lower() == "admin" or
             any(r.name.lower() == "admin" for r in user.roles))
 
-def get_setores_permitidos(user: User) -> List[str]:
+def get_setores_permitidos(user: User, db: Session) -> List[str]:
+    """
+    Retorna slugs dos setores permitidos para o usuário.
+    Para admin: todos os setores do banco.
+    Para outros: slugs baseados nos roles do usuário.
+    DINÂMICO — não usa lista hardcoded.
+    """
     if is_admin_user(user):
-        return list(PROMPTS_SETORES.keys())
+        # Admin vê todos os setores existentes no banco
+        todos_roles = db.query(Role).filter(
+            Role.name.isnot(None)
+        ).all()
+        return [_slug_setor(r.name) for r in todos_roles
+                if r.name.lower() not in ("admin",)]
+
     setores = []
-    mapa = {
-        "juridico":          "juridico",
-        "jurídico":          "juridico",
-        "suprimentos":       "suprimentos",
-        "gestaocontratos":   "gestaocontratos",
-        "gestãodecontratos": "gestaocontratos",
-    }
     for role in user.roles:
-        slug   = role.name.lower().replace("ã","a").replace("ê","e").replace("ç","c").replace(" ","")
-        mapped = mapa.get(slug) or mapa.get(role.name.lower())
-        if mapped and mapped not in setores:
-            setores.append(mapped)
-    return list(set(setores)) or ["juridico"]
+        if role.name.lower() == "admin":
+            continue
+        slug = _slug_setor(role.name)
+        if slug and slug not in setores:
+            setores.append(slug)
+    return setores or [_slug_setor(user.roles[0].name) if user.roles else "juridico"]
 
 # ════════════════════════════════════════════════════════════
 # EXTRAÇÃO DE PDF
-#
-# FIX v4.5:
-#   extrair_texto_pdf_seguro() — thread-safe, retorna (texto, erro).
-#   NUNCA lança HTTPException, pois essa exceção só funciona dentro
-#   do ciclo request/response do FastAPI, não em threads de background.
-#
-#   extrair_texto_pdf() — mantida para endpoints diretos, lança HTTPException.
 # ════════════════════════════════════════════════════════════
-
 def _extrair_com_pymupdf(conteudo: bytes) -> str:
-    doc     = fitz.open(stream=conteudo, filetype="pdf")
+    doc = fitz.open(stream=conteudo, filetype="pdf")
     paginas = []
     for pagina in doc:
         texto = pagina.get_text("text")
@@ -786,7 +813,7 @@ def _extrair_com_pdfplumber(conteudo: bytes) -> str:
         return "\n\n".join(paginas)
 
 def _extrair_com_pypdf(conteudo: bytes) -> str:
-    leitor  = PdfReader(io.BytesIO(conteudo))
+    leitor = PdfReader(io.BytesIO(conteudo))
     paginas = []
     for p in leitor.pages:
         t = p.extract_text()
@@ -795,12 +822,7 @@ def _extrair_com_pypdf(conteudo: bytes) -> str:
     return "\n\n".join(paginas)
 
 def extrair_texto_pdf_seguro(conteudo: bytes) -> tuple[str, Optional[str]]:
-    """
-    Thread-safe: retorna (texto, erro_ou_None).
-    Testa pymupdf → pdfplumber → pypdf em cascata.
-    """
     erros = []
-
     if PYMUPDF_DISPONIVEL:
         try:
             t = _extrair_com_pymupdf(conteudo)
@@ -810,7 +832,6 @@ def extrair_texto_pdf_seguro(conteudo: bytes) -> tuple[str, Optional[str]]:
             erros.append(f"pymupdf: insuficiente ({len(t.strip())} chars)")
         except Exception as e:
             erros.append(f"pymupdf: {str(e)[:80]}")
-
     if PDFPLUMBER_DISPONIVEL:
         try:
             t = _extrair_com_pdfplumber(conteudo)
@@ -820,7 +841,6 @@ def extrair_texto_pdf_seguro(conteudo: bytes) -> tuple[str, Optional[str]]:
             erros.append(f"pdfplumber: insuficiente ({len(t.strip())} chars)")
         except Exception as e:
             erros.append(f"pdfplumber: {str(e)[:80]}")
-
     try:
         t = _extrair_com_pypdf(conteudo)
         if t and len(t.strip()) >= 50:
@@ -829,7 +849,6 @@ def extrair_texto_pdf_seguro(conteudo: bytes) -> tuple[str, Optional[str]]:
         erros.append(f"pypdf: insuficiente ({len(t.strip())} chars)")
     except Exception as e:
         erros.append(f"pypdf: {str(e)[:80]}")
-
     msg = (
         "Não foi possível extrair texto deste PDF. "
         "Possíveis causas: (1) PDF é imagem escaneada sem texto selecionável, "
@@ -840,36 +859,25 @@ def extrair_texto_pdf_seguro(conteudo: bytes) -> tuple[str, Optional[str]]:
     return "", msg
 
 def extrair_texto_pdf(conteudo: bytes) -> str:
-    """Para endpoints diretos (não-threads). Lança HTTPException em erro."""
     texto, erro = extrair_texto_pdf_seguro(conteudo)
     if erro:
         raise HTTPException(status_code=400, detail=erro)
     return texto
 
 # ════════════════════════════════════════════════════════════
-# PROCESSAMENTO INTELIGENTE POR CHUNKS
-#
-# FIX v4.5 — _chamar_gemini sem thread aninhada:
-#   A versão anterior criava uma threading.Thread DENTRO da thread
-#   de background do job. Isso causava comportamento imprevisível
-#   no Render (single-core free tier). Agora a API é chamada
-#   diretamente com retry por backoff.
+# PROCESSAMENTO POR CHUNKS
 # ════════════════════════════════════════════════════════════
-
 CHUNK_SIZE    = 50_000
 CHUNK_OVERLAP = 300
 LIMITE_DIRETO = 60_000
 MAX_CHUNKS    = 4
 
-
 def _dividir_em_chunks(texto: str) -> list[str]:
     chunks  = []
     inicio  = 0
     tamanho = len(texto)
-
     while inicio < tamanho:
         fim = min(inicio + CHUNK_SIZE, tamanho)
-
         if fim < tamanho:
             quebra = texto.rfind("\n\n", inicio + CHUNK_SIZE // 2, fim)
             if quebra == -1:
@@ -878,11 +886,9 @@ def _dividir_em_chunks(texto: str) -> list[str]:
                 quebra = texto.rfind(". ", inicio + CHUNK_SIZE // 2, fim)
             if quebra != -1:
                 fim = quebra + 1
-
         chunk = texto[inicio:fim].strip()
         if chunk:
             chunks.append(chunk)
-
         if len(chunks) >= MAX_CHUNKS:
             restante = texto[fim:].strip()
             if restante:
@@ -891,50 +897,33 @@ def _dividir_em_chunks(texto: str) -> list[str]:
                 else:
                     chunks.append(restante[:CHUNK_SIZE])
             break
-
         inicio = max(fim - CHUNK_OVERLAP, fim - (fim - inicio) + 1)
         if inicio >= tamanho:
             break
-
     return [c for c in chunks if c]
 
-
 def _chamar_gemini(prompt: str, descricao: str = "") -> str:
-    """
-    Chama a API Gemini diretamente, sem thread aninhada.
-    Retry com backoff diferenciado: rate-limit vs servidor sobrecarregado.
-    """
     if not client or not MODELO_ATIVO:
         raise Exception("IA indisponível: verifique a GEMINI_API_KEY e o modelo configurado.")
-
     BACKOFF_RATE_LIMIT   = [10, 30, 60]
     BACKOFF_SERVER_ERROR = [5,  15, 30]
-
     for tentativa in range(4):
         try:
             inicio   = time.time()
-            response = client.models.generate_content(
-                model    = MODELO_ATIVO,
-                contents = prompt
-            )
-            duracao = time.time() - inicio
+            response = client.models.generate_content(model=MODELO_ATIVO, contents=prompt)
+            duracao  = time.time() - inicio
             logger.info(f"✅ Gemini [{descricao}] respondeu em {duracao:.1f}s")
-
             resultado = limpar_markdown(response.text if response and response.text else "")
-
             if not resultado and tentativa < 2:
                 logger.warning(f"⚠️ Gemini [{descricao}] resposta vazia — retry {tentativa+1}/4, aguardando 5s...")
                 time.sleep(5)
                 continue
-
             return resultado
-
         except Exception as e:
             err       = str(e)
             is_rate   = "429" in err or "quota" in err.lower() or "RESOURCE_EXHAUSTED" in err
             is_server = "503" in err or "overloaded" in err.lower() or "unavailable" in err.lower()
             recuperavel = is_rate or is_server
-
             if recuperavel and tentativa < 3:
                 espera = (BACKOFF_RATE_LIMIT if is_rate else BACKOFF_SERVER_ERROR)[tentativa]
                 motivo = "rate limit/quota" if is_rate else "servidor sobrecarregado"
@@ -944,10 +933,8 @@ def _chamar_gemini(prompt: str, descricao: str = "") -> str:
             else:
                 logger.error(f"❌ Gemini [{descricao}] falhou: {err[:200]}")
                 raise
-
     logger.error(f"❌ Gemini [{descricao}] esgotou tentativas")
     return ""
-
 
 def _pre_analisar_chunk(chunk: str, numero: int, total: int, setor: str) -> str:
     prompt = f"""Você está lendo a PARTE {numero} de {total} de um contrato.
@@ -959,30 +946,24 @@ TAREFA CRÍTICA: Extraia TODOS os dados relevantes desta parte sem omitir NADA.
 - NÃO formate como relatório final. Apenas liste os dados encontrados de forma clara.
 - NÃO invente informações. SOMENTE o que está escrito no texto abaixo.
 - NÃO resuma demais — prefira extrair mais dados do que menos.
-- NÃO truncar sua resposta: retorne TODOS os dados encontrados.
 
 PARTE {numero} DE {total}:
 {chunk}
 
-DADOS EXTRAÍDOS (seja completo, não truncar):"""
-
+DADOS EXTRAÍDOS:"""
     resultado = _chamar_gemini(prompt, f"chunk {numero}/{total}")
     if resultado:
         logger.info(f"  ✅ Chunk {numero}/{total}: {len(resultado)} chars extraídos")
     else:
-        logger.warning(f"  ⚠️  Chunk {numero}/{total}: resposta vazia após retries")
+        logger.warning(f"  ⚠️  Chunk {numero}/{total}: resposta vazia")
     return resultado or f"[Parte {numero}: nenhum dado pôde ser extraído]"
 
-
 def _consolidar_analise(pre_analises: list[str], setor: str, total_chunks: int) -> str:
-    config_setor = PROMPTS_SETORES.get(setor, PROMPTS_SETORES["juridico"])
-
+    config_setor = _get_config_setor(setor)
     blocos = "\n\n".join([
         f"═══ EXTRAÇÃO DA PARTE {i+1}/{total_chunks} ═══\n{pa}"
-        for i, pa in enumerate(pre_analises)
-        if pa.strip()
+        for i, pa in enumerate(pre_analises) if pa.strip()
     ])
-
     template_setor = config_setor["resumo"].replace(
         "CONTRATO A ANALISAR:\n{texto}",
         f"""ATENÇÃO IMPORTANTE:
@@ -992,15 +973,12 @@ def _consolidar_analise(pre_analises: list[str], setor: str, total_chunks: int) 
 - NÃO truncar o relatório — inclua todas as seções mesmo que longas.
 - Unifique informações repetidas entre partes sem perder detalhes.
 - Se houver contradições entre partes, registre ambas com nota "Verificar partes X e Y".
-- Preencha cada campo da estrutura com base nas extrações abaixo.
 
 EXTRAÇÕES BRUTAS DAS {total_chunks} PARTES DO CONTRATO:
 {blocos}
 
-INSTRUÇÕES FINAIS: Produza o relatório completo seguindo EXATAMENTE a estrutura acima.
-Não resuma demais — prefira ser detalhado. Não truncar a resposta."""
+INSTRUÇÕES FINAIS: Produza o relatório completo seguindo EXATAMENTE a estrutura acima."""
     )
-
     resultado = _chamar_gemini(template_setor, "consolidação final")
     if resultado:
         logger.info(f"  ✅ Consolidação final: {len(resultado)} chars")
@@ -1008,31 +986,23 @@ Não resuma demais — prefira ser detalhado. Não truncar a resposta."""
         logger.error("  ❌ Consolidação retornou vazio")
     return resultado
 
-
 def gerar_resumo_ia(texto: str, setor: str = "juridico") -> str:
     if not client or not MODELO_ATIVO:
         return "❌ Serviço de IA temporariamente indisponível."
-
-    config_setor = PROMPTS_SETORES.get(setor, PROMPTS_SETORES["juridico"])
+    config_setor = _get_config_setor(setor)
     tamanho      = len(texto)
-
     logger.info(f"📄 Iniciando análise: {tamanho} chars | setor={setor}")
-
     try:
         if tamanho <= LIMITE_DIRETO:
             logger.info(f"📄 Análise direta (1 chamada): {tamanho} chars")
             prompt    = config_setor["resumo"].format(texto=texto)
             resultado = _chamar_gemini(prompt, f"análise direta [{tamanho} chars]")
-
             if not resultado:
                 return "❌ Erro: a IA retornou uma resposta vazia. Tente novamente."
-
             logger.info(f"✅ Análise direta concluída: {len(resultado)} chars")
             return resultado
-
         chunks = _dividir_em_chunks(texto)
         logger.info(f"📚 Análise em chunks: {tamanho} chars → {len(chunks)} partes")
-
         pre_analises = []
         for i, chunk in enumerate(chunks):
             logger.info(f"  🔍 Parte {i+1}/{len(chunks)} ({len(chunk)} chars)...")
@@ -1042,7 +1012,6 @@ def gerar_resumo_ia(texto: str, setor: str = "juridico") -> str:
             except Exception as e:
                 logger.error(f"  ❌ Chunk {i+1} falhou: {e}")
                 pre_analises.append(f"[Parte {i+1} não processada: {str(e)[:200]}]")
-
         logger.info(f"  🔗 Consolidando {len(chunks)} partes...")
         try:
             resultado = _consolidar_analise(pre_analises, setor, len(chunks))
@@ -1051,37 +1020,28 @@ def gerar_resumo_ia(texto: str, setor: str = "juridico") -> str:
                 return resultado
         except Exception as e:
             logger.error(f"  ❌ Consolidação falhou: {e}")
-
-        # Fallback: retorna pré-análises brutas
         logger.warning("⚠️ Usando fallback: pré-análises brutas")
         return (
             f"ANÁLISE PARCIAL ({len(chunks)} PARTES DO CONTRATO)\n"
             "Nota: A consolidação final não foi possível. Dados extraídos de cada parte:\n"
             "═══════════════════════════════════════════\n\n" +
-            "\n\n".join([f"═══ PARTE {i+1}/{len(chunks)} ═══\n{pa}"
-                         for i, pa in enumerate(pre_analises)])
+            "\n\n".join([f"═══ PARTE {i+1}/{len(chunks)} ═══\n{pa}" for i, pa in enumerate(pre_analises)])
         )
-
     except Exception as e:
         logger.error(f"❌ gerar_resumo_ia: {e}")
         return f"❌ Erro ao processar contrato: {str(e)[:500]}"
 
-
 def gerar_resposta_ia(pergunta: str, contexto: str, setor: str = "juridico") -> str:
     if not client or not MODELO_ATIVO:
         return "❌ Serviço de IA temporariamente indisponível."
-
-    config_setor = PROMPTS_SETORES.get(setor, PROMPTS_SETORES["juridico"])
-
+    config_setor = _get_config_setor(setor)
     try:
         if len(contexto) <= LIMITE_DIRETO:
             prompt    = config_setor["perguntas"].format(pergunta=pergunta, contexto=contexto)
             resultado = _chamar_gemini(prompt, f"pergunta direta [{len(contexto)} chars]")
             return resultado if resultado else "❌ Não foi possível gerar uma resposta. Tente novamente."
-
         chunks = _dividir_em_chunks(contexto)
         logger.info(f"💬 Pergunta em contexto longo: {len(chunks)} chunks")
-
         resumos = "\n".join([
             f"PARTE {i+1}: {chunk[:400].replace(chr(10), ' ')}..."
             for i, chunk in enumerate(chunks)
@@ -1094,44 +1054,28 @@ Responda APENAS com os números das partes relevantes separados por vírgula. Ex
 {resumos}
 
 Partes relevantes:"""
-
         triagem = _chamar_gemini(prompt_triagem, "triagem de chunks")
-
         partes_relevantes = []
         if triagem:
             nums = re.findall(r'\d+', triagem)
             partes_relevantes = [int(n) - 1 for n in nums if 0 < int(n) <= len(chunks)]
             partes_relevantes = list(dict.fromkeys(partes_relevantes))[:5]
-
         if not partes_relevantes:
             partes_relevantes = list(range(min(3, len(chunks))))
-
         contexto_filtrado = "\n\n".join([
             f"═══ PARTE {i+1} DO CONTRATO ═══\n{chunks[i]}"
-            for i in partes_relevantes
-            if i < len(chunks)
+            for i in partes_relevantes if i < len(chunks)
         ])
-        prompt_final = config_setor["perguntas"].format(
-            pergunta=pergunta,
-            contexto=contexto_filtrado
-        )
+        prompt_final = config_setor["perguntas"].format(pergunta=pergunta, contexto=contexto_filtrado)
         resultado = _chamar_gemini(prompt_final, "pergunta final")
         return resultado if resultado else "❌ Não foi possível gerar uma resposta. Tente novamente."
-
     except Exception as e:
         logger.error(f"❌ gerar_resposta_ia: {e}")
         return f"❌ Erro ao processar pergunta: {str(e)[:500]}"
 
-
 # ════════════════════════════════════════════════════════════
 # BACKGROUND JOB
-#
-# FIX v4.5:
-#   1. Usa extrair_texto_pdf_seguro() — nunca lança HTTPException
-#   2. _chamar_gemini() sem thread aninhada
-#   3. SessionLocal() aberta DEPOIS de toda a IA terminar
 # ════════════════════════════════════════════════════════════
-
 def _processar_em_background(job_id: str, conteudo: bytes, filename: str,
                               setor: str, user_id: int):
     db = None
@@ -1140,36 +1084,27 @@ def _processar_em_background(job_id: str, conteudo: bytes, filename: str,
         texto, erro = extrair_texto_pdf_seguro(conteudo)
         if erro:
             raise Exception(erro)
-
         logger.info(f"[job {job_id[:8]}] {len(texto)} chars extraídos — analisando [{setor}]")
         resumo = gerar_resumo_ia(texto, setor)
-
         if not resumo or resumo.startswith("❌"):
             raise Exception(resumo or "Resposta vazia da IA")
-
-        # Abre sessão DB apenas aqui — depois que toda a IA terminou
+        config_setor = _get_config_setor(setor)
         db = SessionLocal()
-        novo = Contract(nome=filename, texto=texto, resumo=resumo,
-                        setor=setor, user_id=user_id)
+        novo = Contract(nome=filename, texto=texto, resumo=resumo, setor=setor, user_id=user_id)
         db.add(novo)
         db.commit()
         db.refresh(novo)
-        db.add(Message(
-            contrato_id=novo.id,
-            autor="ai",
-            texto=f"Análise concluída pelo setor {PROMPTS_SETORES[setor]['nome']}."
-        ))
+        db.add(Message(contrato_id=novo.id, autor="ai",
+                       texto=f"Análise concluída pelo setor {config_setor['nome']}."))
         db.commit()
-
         _finalizar_job(job_id, novo.id, {
             "id":         novo.id,
             "nome":       filename,
             "resumo":     resumo,
             "setor":      setor,
-            "setor_nome": PROMPTS_SETORES[setor]['nome']
+            "setor_nome": config_setor['nome']
         })
         logger.info(f"[job {job_id[:8]}] ✅ Concluído — contrato #{novo.id}")
-
     except Exception as e:
         logger.error(f"[job {job_id[:8]}] ❌ {e}")
         _falhar_job(job_id, str(e)[:2000])
@@ -1184,7 +1119,6 @@ def _processar_em_background(job_id: str, conteudo: bytes, filename: str,
 # ════════════════════════════════════════════════════════════
 # PYDANTIC MODELS
 # ════════════════════════════════════════════════════════════
-
 class UserCreate(BaseModel):
     username: str
     password: str
@@ -1229,7 +1163,6 @@ class SetUserVisibilityBody(BaseModel):
 # ════════════════════════════════════════════════════════════
 # ENDPOINTS — AUTENTICAÇÃO
 # ════════════════════════════════════════════════════════════
-
 @app.post("/token", tags=["Autenticação"])
 async def login_for_access_token(
     form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
@@ -1263,7 +1196,6 @@ async def read_users_me(current_user: Annotated[User, Depends(get_current_user)]
 # ════════════════════════════════════════════════════════════
 # ENDPOINTS — ADMINISTRAÇÃO DE USUÁRIOS
 # ════════════════════════════════════════════════════════════
-
 @app.post("/admin/users", response_model=UserOut, tags=["Administração"])
 async def create_user(user: UserCreate, db: Session = Depends(get_db),
                       admin: User = Depends(get_current_admin_user)):
@@ -1311,7 +1243,6 @@ def update_user(user_id: int, user_data: UserUpdate, db: Session = Depends(get_d
 # ════════════════════════════════════════════════════════════
 # ENDPOINTS — ADMINISTRAÇÃO DE ROLES
 # ════════════════════════════════════════════════════════════
-
 @app.post("/admin/roles", response_model=RoleOut, tags=["Administração"])
 async def create_role(role: RoleCreate, db: Session = Depends(get_db),
                       admin: User = Depends(get_current_admin_user)):
@@ -1354,7 +1285,6 @@ async def delete_role(role_id: int, db: Session = Depends(get_db),
 # ════════════════════════════════════════════════════════════
 # ENDPOINTS — PERMISSÕES DE VISIBILIDADE
 # ════════════════════════════════════════════════════════════
-
 @app.get("/admin/visibility", tags=["Permissões de Visibilidade"])
 async def listar_todas_permissoes(db: Session = Depends(get_db),
                                   admin: User = Depends(get_current_admin_user)):
@@ -1432,11 +1362,19 @@ async def definir_permissoes_viewer(viewer_id: int, body: SetUserVisibilityBody,
         invalidos      = set(body.target_ids) - ids_existentes
         if invalidos:
             raise HTTPException(status_code=400, detail=f"Usuários não encontrados: {list(invalidos)}")
-    slugs_validos = set(PROMPTS_SETORES.keys())
+
+    # ── VALIDAÇÃO DINÂMICA DE SLUGS ──────────────────────────────────────────
+    # Obtém todos os roles do banco e converte para slugs válidos (sem hardcode)
     if body.sector_slugs:
-        invalidos_setor = set(body.sector_slugs) - slugs_validos
+        todos_roles      = db.query(Role).all()
+        slugs_validos    = {_slug_setor(r.name) for r in todos_roles
+                            if r.name.lower() not in ("admin",)}
+        invalidos_setor  = set(body.sector_slugs) - slugs_validos
         if invalidos_setor:
-            raise HTTPException(status_code=400, detail=f"Setores inválidos: {list(invalidos_setor)}")
+            raise HTTPException(status_code=400,
+                                detail=f"Setores inválidos: {list(invalidos_setor)}")
+    # ─────────────────────────────────────────────────────────────────────────
+
     db.query(UserVisibilityPermission).filter(
         UserVisibilityPermission.viewer_id == viewer_id
     ).delete(synchronize_session=False)
@@ -1445,9 +1383,8 @@ async def definir_permissoes_viewer(viewer_id: int, body: SetUserVisibilityBody,
             db.add(UserVisibilityPermission(viewer_id=viewer_id, target_id=target_id,
                                             perm_type="user", sector_slug=None))
     for slug in set(body.sector_slugs):
-        if slug in slugs_validos:
-            db.add(UserVisibilityPermission(viewer_id=viewer_id, target_id=None,
-                                            perm_type="sector", sector_slug=slug))
+        db.add(UserVisibilityPermission(viewer_id=viewer_id, target_id=None,
+                                        perm_type="sector", sector_slug=slug))
     db.commit()
     return {"detail": "Permissões atualizadas", "viewer_id": viewer_id,
             "target_ids": list(set(body.target_ids)), "sector_slugs": list(set(body.sector_slugs))}
@@ -1487,7 +1424,6 @@ async def minhas_permissoes(db: Session = Depends(get_db),
 # ════════════════════════════════════════════════════════════
 # ENDPOINTS — CONTRATOS
 # ════════════════════════════════════════════════════════════
-
 @app.post("/upload", tags=["Contratos"])
 async def upload_contrato(
     background_tasks: BackgroundTasks,
@@ -1496,73 +1432,37 @@ async def upload_contrato(
     db:               Session    = Depends(get_db),
     current_user:     User       = Depends(get_current_user)
 ):
-    """
-    Recebe o PDF, valida sincronicamente e retorna job_id imediatamente.
-    A análise roda como BackgroundTask do FastAPI — o uvicorn continua
-    respondendo a /ping e /job/{id} durante toda a análise.
-
-    FIX v4.6: usa BackgroundTasks (não daemon Thread).
-    Daemon threads são destruídas quando o processo principal é sinalizado
-    para encerrar. BackgroundTasks do FastAPI são aguardadas pelo uvicorn
-    antes de encerrar o processo, evitando que o Render mate a análise.
-    """
     if not file.filename.lower().endswith('.pdf'):
         raise HTTPException(status_code=400, detail="Apenas arquivos PDF são permitidos")
-    if setor not in PROMPTS_SETORES:
-        setor = "juridico"
 
+    # Aceita qualquer setor — sem validação hardcoded
     conteudo = await file.read()
-
     if len(conteudo) > 50 * 1024 * 1024:
         raise HTTPException(status_code=400,
                             detail="Arquivo muito grande. O tamanho máximo permitido é 50MB.")
-
-    # Valida extração ANTES de criar o job — falha rápida com 400 se PDF ilegível
     _, erro_pdf = extrair_texto_pdf_seguro(conteudo)
     if erro_pdf:
         raise HTTPException(status_code=400, detail=erro_pdf)
 
     job_id = _criar_job(current_user.id)
-
-    # BackgroundTasks roda APÓS a response ser enviada ao cliente,
-    # mas é gerenciada pelo uvicorn — não é daemon, não é destruída no shutdown.
     background_tasks.add_task(
         _processar_em_background,
         job_id, conteudo, file.filename, setor, current_user.id
     )
     logger.info(f"🚀 Job {job_id[:8]} iniciado — '{file.filename}' [{setor}] ({len(conteudo)//1024}KB)")
-
-    return {
-        "job_id":   job_id,
-        "status":   "processing",
-        "mensagem": "Análise iniciada. Acompanhe em /job/{job_id}"
-    }
-
+    return {"job_id": job_id, "status": "processing",
+            "mensagem": "Análise iniciada. Acompanhe em /job/{job_id}"}
 
 @app.get("/job/{job_id}", tags=["Contratos"])
 async def status_job(job_id: str, current_user: User = Depends(get_current_user)):
-    """
-    Polling do status de análise.
-    FIX v4.5: jobs persistidos no banco principal via SQLAlchemy.
-    Restart do Render NÃO apaga mais o job.
-    Status: processing | done | error
-    """
     job = _ler_job(job_id)
     if not job:
-        raise HTTPException(
-            status_code=404,
-            detail=(
-                "Job não encontrado. O servidor reiniciou antes de registrar o job. "
-                "Aguarde 30 segundos e tente enviar o arquivo novamente."
-            )
-        )
-    return {
-        "job_id":      job_id,
-        "status":      job["status"],
-        "result":      job.get("result"),
-        "error":       job.get("error"),
-        "contrato_id": job.get("contrato_id")
-    }
+        raise HTTPException(status_code=404, detail=(
+            "Job não encontrado. O servidor reiniciou antes de registrar o job. "
+            "Aguarde 30 segundos e tente enviar o arquivo novamente."
+        ))
+    return {"job_id": job_id, "status": job["status"], "result": job.get("result"),
+            "error": job.get("error"), "contrato_id": job.get("contrato_id")}
 
 @app.get("/contratos/listar", tags=["Contratos"])
 async def listar_contratos(
@@ -1572,11 +1472,11 @@ async def listar_contratos(
     current_user: User          = Depends(get_current_user)
 ):
     admin        = is_admin_user(current_user)
-    meus_setores = get_setores_permitidos(current_user)
+    meus_setores = get_setores_permitidos(current_user, db)
 
     if admin:
         query = db.query(Contract)
-        if sector_id and sector_id in PROMPTS_SETORES:
+        if sector_id:
             query = query.filter(Contract.setor == sector_id)
         if analyst_id:
             query = query.filter(Contract.user_id == analyst_id)
@@ -1596,7 +1496,7 @@ async def listar_contratos(
             if analyst_id != current_user.id and analyst_id not in target_ids_usuario:
                 analista_obj = db.query(User).filter(User.id == analyst_id).first()
                 if analista_obj:
-                    setores_analista = get_setores_permitidos(analista_obj)
+                    setores_analista = get_setores_permitidos(analista_obj, db)
                     if not any(s in slugs_setor for s in setores_analista):
                         raise HTTPException(status_code=403,
                                             detail="Sem permissão para contratos deste analista.")
@@ -1634,12 +1534,13 @@ async def listar_contratos(
                             "cor": avatar_color(au.id)}
         else:
             analista_obj = {"id": None, "nome": "Desconhecido", "iniciais": "??", "cor": "#475569"}
+        config_setor = _get_config_setor(c.setor)
         is_mine = (c.user_id == current_user.id)
         result.append({
             "id": c.id, "nome": c.nome,
             "data": c.created_at.isoformat() if c.created_at else None,
             "setor": c.setor,
-            "setor_nome": PROMPTS_SETORES.get(c.setor, {}).get('nome', c.setor),
+            "setor_nome": config_setor.get('nome', c.setor),
             "preview": c.resumo[:200] + "..." if c.resumo and len(c.resumo) > 200 else c.resumo,
             "analista": analista_obj, "is_mine": is_mine,
             "show_analyst": admin or (not is_mine),
@@ -1672,10 +1573,11 @@ async def obter_contrato(contrato_id: int, db: Session = Depends(get_db),
         nome     = formatar_nome_usuario(au)
         analista = {"id": au.id, "nome": nome, "iniciais": get_iniciais(nome),
                     "cor": avatar_color(au.id)}
+    config_setor = _get_config_setor(contrato.setor)
     return {
         "id": contrato.id, "nome": contrato.nome, "resumo": contrato.resumo,
         "setor": contrato.setor,
-        "setor_nome": PROMPTS_SETORES.get(contrato.setor, {}).get('nome', contrato.setor),
+        "setor_nome": config_setor.get('nome', contrato.setor),
         "analista": analista,
         "mensagens": [{"id": m.id, "autor": m.autor, "texto": m.texto,
                        "data": m.created_at.isoformat() if m.created_at else None}
@@ -1698,7 +1600,6 @@ async def excluir_contrato(contrato_id: int, db: Session = Depends(get_db),
 # ════════════════════════════════════════════════════════════
 # ENDPOINT — CHAT
 # ════════════════════════════════════════════════════════════
-
 @app.post("/perguntar", tags=["Chat"])
 async def perguntar_contrato(
     request:     Request,
@@ -1746,52 +1647,50 @@ async def perguntar_contrato(
         if not perm_user and not perm_setor:
             raise HTTPException(status_code=403, detail="Acesso negado a este contrato.")
 
-    if setor not in PROMPTS_SETORES:
-        setor = "juridico"
-
+    # setor aceito sem validação hardcoded — _get_config_setor gera prompt dinâmico se necessário
     db.add(Message(contrato_id=contrato.id, autor="user", texto=pergunta))
     db.commit()
     resposta_ia = gerar_resposta_ia(pergunta=pergunta, contexto=contrato.texto, setor=setor)
     db.add(Message(contrato_id=contrato.id, autor="ai", texto=resposta_ia))
     db.commit()
 
+    config_setor = _get_config_setor(setor)
     return {
         "resposta":    resposta_ia,
         "pergunta":    pergunta,
         "setor_usado": setor,
-        "setor_nome":  PROMPTS_SETORES[setor]['nome'],
+        "setor_nome":  config_setor['nome'],
         "contrato_id": contrato.id
     }
 
 # ════════════════════════════════════════════════════════════
 # ENDPOINTS DO SISTEMA
 # ════════════════════════════════════════════════════════════
-
 @app.get("/", tags=["Sistema"])
 async def root():
     return {
-        "sistema":        "Analisador de Contratos IA - Opersan",
-        "versao":         "4.6.0",
-        "status":         "online",
-        "ia_disponivel":  MODELO_ATIVO is not None,
-        "modelo_ia":      MODELO_ATIVO,
+        "sistema":       "Analisador de Contratos IA - Opersan",
+        "versao":        "4.7.0",
+        "status":        "online",
+        "ia_disponivel": MODELO_ATIVO is not None,
+        "modelo_ia":     MODELO_ATIVO,
         "chunk_config": {
-            "limite_direto":  LIMITE_DIRETO,
-            "chunk_size":     CHUNK_SIZE,
-            "chunk_overlap":  CHUNK_OVERLAP,
-            "max_chunks":     MAX_CHUNKS,
+            "limite_direto": LIMITE_DIRETO,
+            "chunk_size":    CHUNK_SIZE,
+            "chunk_overlap": CHUNK_OVERLAP,
+            "max_chunks":    MAX_CHUNKS,
         },
         "extratores_pdf": {
             "pymupdf":    PYMUPDF_DISPONIVEL,
             "pdfplumber": PDFPLUMBER_DISPONIVEL,
             "pypdf":      True
         },
-        "setores_disponiveis": list(PROMPTS_SETORES.keys()),
+        "setores_base": list(PROMPTS_SETORES.keys()),
+        "setores_dinamicos": True,
     }
 
 @app.get("/ping", tags=["Sistema"])
 async def ping():
-    """Keep-alive: o frontend faz GET /ping a cada 55s durante análise longa."""
     return {"pong": True, "ts": time.time()}
 
 @app.get("/health", tags=["Sistema"])
@@ -1806,12 +1705,9 @@ async def health_check():
         }
     }
 
-# ════════════════════════════════════════════════════════════
-# EXECUÇÃO
-# ════════════════════════════════════════════════════════════
 if __name__ == "__main__":
     import uvicorn
     logger.info("=" * 60)
-    logger.info("🚀 OPERSAN v4.6 — BackgroundTasks FastAPI | jobs no banco | sem daemon thread")
+    logger.info("🚀 OPERSAN v4.7 — Setores dinâmicos | prompts gerados automaticamente")
     logger.info("=" * 60)
     uvicorn.run(app, host=HOST, port=PORT)
