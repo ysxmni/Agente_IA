@@ -3,9 +3,11 @@ import re
 import time
 import uuid
 import sqlite3
+import asyncio
 import threading
+from concurrent.futures import ThreadPoolExecutor
 from typing import Optional, List
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Request, Depends
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Request, Depends, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from pypdf import PdfReader
 import logging
@@ -76,7 +78,7 @@ class UserLogin(BaseModel):
 app = FastAPI(
     title="Analisador de Contratos IA - Sistema Opersan",
     description="Sistema de análise de contratos com IA e gestão multi-setorial",
-    version="4.5.0"
+    version="4.6.0"
 )
 
 app.add_middleware(
@@ -1488,14 +1490,21 @@ async def minhas_permissoes(db: Session = Depends(get_db),
 
 @app.post("/upload", tags=["Contratos"])
 async def upload_contrato(
-    file:         UploadFile = File(...),
-    setor:        str        = Form("juridico"),
-    db:           Session    = Depends(get_db),
-    current_user: User       = Depends(get_current_user)
+    background_tasks: BackgroundTasks,
+    file:             UploadFile = File(...),
+    setor:            str        = Form("juridico"),
+    db:               Session    = Depends(get_db),
+    current_user:     User       = Depends(get_current_user)
 ):
     """
     Recebe o PDF, valida sincronicamente e retorna job_id imediatamente.
-    A análise roda em background — use GET /job/{job_id} para acompanhar.
+    A análise roda como BackgroundTask do FastAPI — o uvicorn continua
+    respondendo a /ping e /job/{id} durante toda a análise.
+
+    FIX v4.6: usa BackgroundTasks (não daemon Thread).
+    Daemon threads são destruídas quando o processo principal é sinalizado
+    para encerrar. BackgroundTasks do FastAPI são aguardadas pelo uvicorn
+    antes de encerrar o processo, evitando que o Render mate a análise.
     """
     if not file.filename.lower().endswith('.pdf'):
         raise HTTPException(status_code=400, detail="Apenas arquivos PDF são permitidos")
@@ -1515,12 +1524,12 @@ async def upload_contrato(
 
     job_id = _criar_job(current_user.id)
 
-    t = threading.Thread(
-        target=_processar_em_background,
-        args=(job_id, conteudo, file.filename, setor, current_user.id),
-        daemon=True
+    # BackgroundTasks roda APÓS a response ser enviada ao cliente,
+    # mas é gerenciada pelo uvicorn — não é daemon, não é destruída no shutdown.
+    background_tasks.add_task(
+        _processar_em_background,
+        job_id, conteudo, file.filename, setor, current_user.id
     )
-    t.start()
     logger.info(f"🚀 Job {job_id[:8]} iniciado — '{file.filename}' [{setor}] ({len(conteudo)//1024}KB)")
 
     return {
@@ -1762,7 +1771,7 @@ async def perguntar_contrato(
 async def root():
     return {
         "sistema":        "Analisador de Contratos IA - Opersan",
-        "versao":         "4.5.0",
+        "versao":         "4.6.0",
         "status":         "online",
         "ia_disponivel":  MODELO_ATIVO is not None,
         "modelo_ia":      MODELO_ATIVO,
@@ -1803,6 +1812,6 @@ async def health_check():
 if __name__ == "__main__":
     import uvicorn
     logger.info("=" * 60)
-    logger.info("🚀 OPERSAN v4.5 — jobs no banco principal | sem thread aninhada | pool_size=5")
+    logger.info("🚀 OPERSAN v4.6 — BackgroundTasks FastAPI | jobs no banco | sem daemon thread")
     logger.info("=" * 60)
     uvicorn.run(app, host=HOST, port=PORT)
