@@ -8,46 +8,6 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Lora:wght@700&display=swap" rel="stylesheet">
-
-    <!-- Layout side-by-side: formulário fixo + tabela expansível -->
-    <style>
-        /* ── Grid das seções: form (esq) + tabela (dir) ── */
-        #section-users,
-        #section-sectors {
-            display: grid !important;
-            grid-template-columns: 380px 1fr;
-            gap: 1.5rem;
-            align-items: start;
-        }
-
-        /* Formulário fica sticky ao rolar */
-        #section-users  > .form-col,
-        #section-sectors > .form-col {
-            display: flex;
-            flex-direction: column;
-            gap: 0.75rem;
-            position: sticky;
-            top: 0;
-        }
-
-        /* Tabela ocupa o espaço restante */
-        #section-users  > .table-col,
-        #section-sectors > .table-col {
-            min-width: 0;
-        }
-
-        /* Responsivo */
-        @media (max-width: 1100px) {
-            #section-users,
-            #section-sectors {
-                grid-template-columns: 1fr !important;
-            }
-            #section-users  > .form-col,
-            #section-sectors > .form-col {
-                position: static;
-            }
-        }
-    </style>
 </head>
 <body>
 <div class="admin-layout">
@@ -62,11 +22,11 @@
         </div>
 
         <nav class="admin-nav">
-            <button id="tab-users-btn"      class="admin-nav-item active" onclick="switchTab('users')">
+            <button id="tab-users-btn" class="admin-nav-item active" onclick="switchTab('users')">
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
                 Usuários
             </button>
-            <button id="tab-sectors-btn"    class="admin-nav-item" onclick="switchTab('sectors')">
+            <button id="tab-sectors-btn" class="admin-nav-item" onclick="switchTab('sectors')">
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
                 Setores
             </button>
@@ -111,9 +71,8 @@
         </div>
 
         <!-- ══ SEÇÃO: USUÁRIOS ══ -->
-        <section id="section-users" class="admin-section">
+        <section id="section-users" class="admin-section section-grid">
 
-            <!-- COLUNA ESQUERDA: Formulário criar usuário -->
             <div class="form-col">
                 <div class="admin-card">
                     <div class="admin-card-header">
@@ -149,7 +108,6 @@
                 </button>
             </div>
 
-            <!-- COLUNA DIREITA: Tabela de usuários -->
             <div class="table-col">
                 <div class="admin-card">
                     <div class="admin-card-header space-between">
@@ -164,14 +122,7 @@
                     </div>
                     <div class="admin-card-body table-body">
                         <table class="admin-table">
-                            <thead>
-                                <tr>
-                                    <th>E-mail</th>
-                                    <th>Nome</th>
-                                    <th>Setores</th>
-                                    <th>Ações</th>
-                                </tr>
-                            </thead>
+                            <thead><tr><th>E-mail</th><th>Nome</th><th>Setores</th><th>Ações</th></tr></thead>
                             <tbody id="users-table-body">
                                 <tr><td colspan="4" class="preview-empty">Carregando...</td></tr>
                             </tbody>
@@ -183,9 +134,8 @@
         </section>
 
         <!-- ══ SEÇÃO: SETORES ══ -->
-        <section id="section-sectors" class="admin-section hidden">
+        <section id="section-sectors" class="admin-section section-grid hidden">
 
-            <!-- COLUNA ESQUERDA: Formulário criar setor -->
             <div class="form-col">
                 <div class="admin-card">
                     <div class="admin-card-header">
@@ -211,7 +161,6 @@
                 </button>
             </div>
 
-            <!-- COLUNA DIREITA: Tabela de setores -->
             <div class="table-col">
                 <div class="admin-card">
                     <div class="admin-card-header space-between">
@@ -226,14 +175,7 @@
                     </div>
                     <div class="admin-card-body table-body">
                         <table class="admin-table">
-                            <thead>
-                                <tr>
-                                    <th>Nome</th>
-                                    <th>Descrição</th>
-                                    <th>Criado em</th>
-                                    <th>Ações</th>
-                                </tr>
-                            </thead>
+                            <thead><tr><th>Nome</th><th>Descrição</th><th>Criado em</th><th>Ações</th></tr></thead>
                             <tbody id="sectors-table-body">
                                 <tr><td colspan="4" class="preview-empty">Carregando...</td></tr>
                             </tbody>
@@ -248,7 +190,6 @@
         <section id="section-permissoes" class="admin-section hidden">
             <div class="perm-layout">
 
-                <!-- Coluna Esquerda: lista de viewers -->
                 <div class="perm-col-left">
                     <div class="admin-card full-height">
                         <div class="admin-card-header">
@@ -268,7 +209,6 @@
                     </div>
                 </div>
 
-                <!-- Coluna Direita: painel de configuração -->
                 <div class="perm-col-right">
                     <div id="perm-painel-vazio" class="perm-vazio-state">
                         <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="color:#475569"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
@@ -405,7 +345,7 @@
     </div>
 </div>
 
-<!-- Toast de notificação -->
+<!-- Toast -->
 <div id="toast" class="toast hidden">
     <span id="toast-icon"></span>
     <span id="toast-message"></span>

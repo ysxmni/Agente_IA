@@ -5,120 +5,6 @@
 const API   = "https://agente-ia-62sa.onrender.com";
 const token = localStorage.getItem("userToken") || localStorage.getItem("token") || "";
 
-// ── INJECT CSS — garante que os estilos do dropdown existam independente do admin.css ──
-(function _injectAdminStyles() {
-    if (document.getElementById("admin-dropdown-styles")) return;
-    const s = document.createElement("style");
-    s.id = "admin-dropdown-styles";
-    s.textContent = `
-        /* ── Trigger ── */
-        .badges-dropdown-trigger {
-            display:flex; align-items:center; justify-content:space-between;
-            gap:.5rem; width:100%; min-height:40px;
-            padding:.45rem .85rem;
-            background:#0d1117; border:1px solid rgba(255,255,255,.08);
-            border-radius:8px; cursor:pointer;
-            transition:border-color .15s; text-align:left;
-            font-family:inherit;
-        }
-        .badges-dropdown-trigger:hover,
-        .badges-dropdown-trigger.open { border-color:#3b82f6; }
-        .badges-dropdown-trigger-left {
-            display:flex; flex-wrap:wrap; gap:.3rem; flex:1; min-width:0;
-        }
-        .badges-dropdown-trigger-placeholder {
-            font-size:.8rem; color:#475569; padding:.1rem 0;
-        }
-        .badges-dropdown-trigger-arrow {
-            color:#475569; flex-shrink:0;
-            transition:transform .2s; display:flex; align-items:center;
-        }
-        .badges-dropdown-trigger.open .badges-dropdown-trigger-arrow { transform:rotate(180deg); }
-
-        /* ── Mini badge no trigger ── */
-        .badge-mini {
-            display:inline-flex; align-items:center;
-            padding:.2rem .55rem; border-radius:5px;
-            font-size:.74rem; font-weight:600;
-            background:#1e293b; color:#94a3b8;
-            border:1px solid #334155; white-space:nowrap;
-        }
-        .badge-mini.juridico        { background:#3b82f612; color:#93c5fd; border-color:#3b82f625; }
-        .badge-mini.suprimentos     { background:#10b98112; color:#6ee7b7; border-color:#10b98125; }
-        .badge-mini.gestaocontratos { background:#f59e0b12; color:#fcd34d; border-color:#f59e0b25; }
-        .badge-mini.admin           { background:#ef444412; color:#fca5a5; border-color:#ef444425; }
-
-        /* ── Painel flutuante (portal no body) ── */
-        .badges-dropdown-panel {
-            position:fixed; z-index:99999;
-            background:#0d1117; border:1px solid rgba(255,255,255,.1);
-            border-radius:10px; padding:.4rem;
-            display:none; flex-direction:column; gap:.2rem;
-            max-height:230px; overflow-y:auto;
-            box-shadow:0 12px 40px rgba(0,0,0,.7);
-        }
-        .badges-dropdown-panel.open { display:flex; }
-
-        /* ── Item dentro do painel ── */
-        .badges-dropdown-panel .badge {
-            display:flex; align-items:center; justify-content:space-between;
-            gap:.5rem; padding:.45rem .7rem; border-radius:7px;
-            border:1px solid transparent; cursor:pointer;
-            font-size:.8rem; transition:all .12s; color:#e2e8f0;
-        }
-        .badges-dropdown-panel .badge:hover { background:#1e293b; border-color:#334155; }
-        .badges-dropdown-panel .badge.active { background:#3b82f612; border-color:#3b82f630; }
-
-        .badge-label-wrap { display:flex; align-items:center; gap:.5rem; }
-        .badge-dot { width:8px; height:8px; border-radius:50%; background:#475569; flex-shrink:0; }
-        .badge-dot.juridico        { background:#3b82f6; }
-        .badge-dot.suprimentos     { background:#10b981; }
-        .badge-dot.gestaocontratos { background:#f59e0b; }
-        .badge-check { color:#3b82f6; flex-shrink:0; display:flex; align-items:center; }
-        .badge-loading { font-size:.8rem; color:#475569; padding:.5rem .75rem; }
-
-        /* ════════════════════════════════════════════════
-           LAYOUT LADO A LADO — Formulário + Tabela
-           section-users e section-sectors ficam em grid:
-           coluna esquerda = formulário (novo)
-           coluna direita  = tabela (todos)
-        ════════════════════════════════════════════════ */
-        #section-users,
-        #section-sectors {
-            display: grid !important;
-            grid-template-columns: 420px 1fr;
-            gap: 1.5rem;
-            align-items: start;
-        }
-
-        /* Garante que form e tabela sejam filhos diretos do grid */
-        #section-users  > *,
-        #section-sectors > * {
-            min-width: 0;
-        }
-
-        /* Card do formulário — fica fixo na esquerda */
-        #section-users  .admin-card:first-child,
-        #section-sectors .admin-card:first-child {
-            position: sticky;
-            top: 1rem;
-        }
-
-        /* Responsivo: empilha em telas menores */
-        @media (max-width: 1100px) {
-            #section-users,
-            #section-sectors {
-                grid-template-columns: 1fr !important;
-            }
-            #section-users  .admin-card:first-child,
-            #section-sectors .admin-card:first-child {
-                position: static;
-            }
-        }
-    `;
-    document.head.appendChild(s);
-})();
-
 // ─── ÍCONES SVG INLINE ────────────────────────────────────────────────────────
 const SVG = {
     edit:     `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>`,
@@ -129,18 +15,15 @@ const SVG = {
     eye:      `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>`,
     eyeOff:   `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>`,
     warning:  `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`,
-    eyeSmall: `<svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>`,
     check:    `<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`,
     chevDown: `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>`,
-    arrowLeft:`<svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>`,
 };
 
 // ─── ESTADO ──────────────────────────────────────────────────────────────────
-
 let allUsers            = [];
 let allRoles            = [];
-let selectedSectorIds   = [];   // IDs selecionados no form "Novo Usuário"
-let editSectorIds       = [];   // IDs selecionados no modal "Editar Usuário"
+let selectedSectorIds   = [];
+let editSectorIds       = [];
 let itemToDelete        = { id: null, type: null };
 
 let permViewerSelecionado   = null;
@@ -185,8 +68,7 @@ function _classeCorSetor(nome) {
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-//  DROPDOWN BASE — cria trigger + painel portal no <body>
-//  (evita corte por overflow:hidden de containers pai)
+//  DROPDOWN BASE — painel portal no <body>
 // ════════════════════════════════════════════════════════════════════════════
 
 function _criarBaseDropdown(containerId) {
@@ -194,11 +76,9 @@ function _criarBaseDropdown(containerId) {
     if (!container) return null;
     container.innerHTML = "";
 
-    // Remove painel anterior do body se existir
     const painelAnterior = document.getElementById(`panel-${containerId}`);
     if (painelAnterior) painelAnterior.remove();
 
-    // ── Trigger ──────────────────────────────────────────────────────────────
     const trigger = document.createElement("button");
     trigger.type      = "button";
     trigger.className = "badges-dropdown-trigger";
@@ -213,7 +93,6 @@ function _criarBaseDropdown(containerId) {
     trigger.appendChild(triggerLeft);
     trigger.appendChild(triggerArrow);
 
-    // ── Painel portal no <body> ───────────────────────────────────────────────
     const panel = document.createElement("div");
     panel.className = "badges-dropdown-panel";
     panel.id        = `panel-${containerId}`;
@@ -235,7 +114,6 @@ function _criarBaseDropdown(containerId) {
     let isOpen = false;
 
     function abrirDropdown() {
-        // Fecha todos os outros painéis abertos
         document.querySelectorAll(".badges-dropdown-panel.open").forEach(p => {
             if (p.id !== panel.id) p.classList.remove("open");
         });
@@ -267,12 +145,11 @@ function _criarBaseDropdown(containerId) {
     document.addEventListener("keydown", e => { if (e.key === "Escape") fecharDropdown(); });
 
     container.appendChild(trigger);
-
     return { container, trigger, triggerLeft, panel, fecharDropdown };
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-//  DROPDOWN DE SETORES — multi-select
+//  DROPDOWN SETORES — multi-select
 // ════════════════════════════════════════════════════════════════════════════
 
 function criarDropdownSetores(containerId, setores, selectedIds, onChange) {
@@ -311,7 +188,6 @@ function criarDropdownSetores(containerId, setores, selectedIds, onChange) {
         setores.forEach(role => {
             const ativo       = selectedIds.includes(role.id);
             const classeSetor = _classeCorSetor(role.name);
-
             const item = document.createElement("div");
             item.className  = `badge ${ativo ? "active" : "inactive"}`;
             item.dataset.id = role.id;
@@ -321,7 +197,6 @@ function criarDropdownSetores(containerId, setores, selectedIds, onChange) {
                     <span>${role.name}</span>
                 </div>
                 <span class="badge-check" style="opacity:${ativo ? 1 : 0}">${SVG.check}</span>`;
-
             item.addEventListener("click", () => {
                 const idx   = selectedIds.indexOf(role.id);
                 const check = item.querySelector(".badge-check");
@@ -337,7 +212,6 @@ function criarDropdownSetores(containerId, setores, selectedIds, onChange) {
                 atualizarTrigger();
                 if (onChange) onChange(selectedIds);
             });
-
             panel.appendChild(item);
         });
     }
@@ -351,7 +225,7 @@ function criarDropdownSetores(containerId, setores, selectedIds, onChange) {
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-//  DROPDOWN DE ROLE — seleção única (Admin / Usuário)
+//  DROPDOWN ROLE — seleção única
 // ════════════════════════════════════════════════════════════════════════════
 
 function criarDropdownRole(containerId, opcoes, valorInicial, onChange) {
@@ -359,7 +233,6 @@ function criarDropdownRole(containerId, opcoes, valorInicial, onChange) {
     if (!container) return;
 
     let valorAtual = valorInicial;
-
     const base = _criarBaseDropdown(containerId);
     if (!base) return;
     const { triggerLeft, panel, fecharDropdown } = base;
@@ -387,7 +260,6 @@ function criarDropdownRole(containerId, opcoes, valorInicial, onChange) {
                     <span>${opcao.label}</span>
                 </div>
                 <span class="badge-check" style="opacity:${ativo ? 1 : 0}">${SVG.check}</span>`;
-
             item.addEventListener("click", () => {
                 valorAtual = opcao.value;
                 if (onChange) onChange(valorAtual);
@@ -395,7 +267,6 @@ function criarDropdownRole(containerId, opcoes, valorInicial, onChange) {
                 atualizarTrigger();
                 fecharDropdown();
             });
-
             panel.appendChild(item);
         });
     }
@@ -407,8 +278,6 @@ function criarDropdownRole(containerId, opcoes, valorInicial, onChange) {
     base.container._reset    = () => { valorAtual = valorInicial; atualizarTrigger(); renderizarItens(); };
     base.container._destroy  = () => { fecharDropdown(); panel.remove(); };
 }
-
-// ─── INICIALIZAR DROPDOWNS DO FORM NOVO USUÁRIO ───────────────────────────────
 
 function renderizarRoleDropdown() {
     criarDropdownRole(
@@ -455,63 +324,10 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 
     await carregarDados();
-    _aplicarLayoutSideBySide();
     configurarFormularios();
     configurarTeclado();
     configurarBuscas();
 });
-
-// ════════════════════════════════════════════════════════════════════════════
-//  LAYOUT LADO A LADO — detecta os containers reais e aplica o grid
-//  Funciona independente do nome de classe/id do admin.html
-// ════════════════════════════════════════════════════════════════════════════
-
-function _aplicarLayoutSideBySide() {
-    // IDs conhecidos das seções de usuários e setores
-    const secoes = [
-        document.getElementById("section-users"),
-        document.getElementById("section-sectors"),
-        // fallbacks caso os IDs sejam diferentes
-        document.querySelector(".admin-section-users"),
-        document.querySelector(".admin-section-sectors"),
-    ].filter(Boolean);
-
-    secoes.forEach(secao => {
-        // Pega os 2 primeiros filhos diretos que sejam cards/divs
-        const filhos = [...secao.children].filter(el =>
-            el.tagName === "DIV" || el.classList.contains("admin-card")
-        );
-        if (filhos.length < 2) return;
-
-        // Aplica grid diretamente no elemento pai
-        Object.assign(secao.style, {
-            display:             "grid",
-            gridTemplateColumns: "420px 1fr",
-            gap:                 "1.5rem",
-            alignItems:          "start",
-        });
-
-        // Formulário (1º filho) fica sticky
-        Object.assign(filhos[0].style, {
-            position: "sticky",
-            top:      "1rem",
-        });
-
-        // Responsivo via resize observer
-        const ro = new ResizeObserver(entries => {
-            for (const entry of entries) {
-                if (entry.contentRect.width < 1100) {
-                    secao.style.gridTemplateColumns = "1fr";
-                    filhos[0].style.position        = "static";
-                } else {
-                    secao.style.gridTemplateColumns = "420px 1fr";
-                    filhos[0].style.position        = "sticky";
-                }
-            }
-        });
-        ro.observe(secao);
-    });
-}
 
 function mostrarErroPermissao(mensagem) {
     document.body.innerHTML = `
@@ -529,8 +345,6 @@ function mostrarErroPermissao(mensagem) {
                 Voltar ao Sistema</a>
         </div>`;
 }
-
-// ─── PERFIL ───────────────────────────────────────────────────────────────────
 
 function configurarPerfilAdmin(me) {
     const rawName = me.name || me.username || "Admin";
@@ -582,8 +396,6 @@ async function carregarDados() {
     }
 }
 
-// ─── STATS ────────────────────────────────────────────────────────────────────
-
 function renderizarStats() {
     const setores = allRoles.filter(r => r.name.toLowerCase() !== "admin");
     const admins  = allUsers.filter(u => u.roles.some(r => r.name.toLowerCase() === "admin"));
@@ -593,29 +405,19 @@ function renderizarStats() {
     el("total-admins",  admins.length);
 }
 
-// ─── DROPDOWN SETORES (form criar usuário) ────────────────────────────────────
-
 function renderizarBadgesSetores() {
     const setores = allRoles.filter(r => r.name.toLowerCase() !== "admin");
     selectedSectorIds = selectedSectorIds.filter(id => setores.some(r => r.id === id));
     criarDropdownSetores("sectors-list-badges", setores, selectedSectorIds);
 }
 
-// ─── PREVIEW LATERAL — USUÁRIOS ───────────────────────────────────────────────
-
 function renderizarPreviewUsuarios() {
     const container = document.getElementById("preview-users-list");
     const counter   = document.getElementById("preview-users-count");
     if (!container) return;
-
     const naoAdmin = allUsers.filter(u => !u.roles.some(r => r.name.toLowerCase() === "admin"));
     if (counter) counter.textContent = naoAdmin.length;
-
-    if (!naoAdmin.length) {
-        container.innerHTML = '<p class="preview-empty">Nenhum usuário cadastrado ainda.</p>';
-        return;
-    }
-
+    if (!naoAdmin.length) { container.innerHTML = '<p class="preview-empty">Nenhum usuário cadastrado ainda.</p>'; return; }
     container.innerHTML = naoAdmin.map(u => {
         const nome       = formatarNome(u.username);
         const inicial    = nome.charAt(0).toUpperCase();
@@ -623,48 +425,26 @@ function renderizarPreviewUsuarios() {
         const badgesHtml = setores.length
             ? setores.map(r => `<span class="preview-role-badge" data-setor="${_slugSetor(r.name)}">${r.name}</span>`).join("")
             : `<span class="preview-role-badge sem-setor">sem setor</span>`;
-        return `
-        <div class="preview-user-card">
-            <div class="preview-avatar">${inicial}</div>
-            <div class="preview-user-info">
-                <span class="preview-user-name">${nome}</span>
-                <div class="preview-roles">${badgesHtml}</div>
-            </div>
-        </div>`;
+        return `<div class="preview-user-card"><div class="preview-avatar">${inicial}</div><div class="preview-user-info"><span class="preview-user-name">${nome}</span><div class="preview-roles">${badgesHtml}</div></div></div>`;
     }).join("");
 }
-
-// ─── PREVIEW LATERAL — SETORES ────────────────────────────────────────────────
 
 function renderizarPreviewSetores() {
     const container = document.getElementById("preview-sectors-list");
     const counter   = document.getElementById("preview-sectors-count");
     if (!container) return;
-
     const setores = allRoles.filter(r => r.name.toLowerCase() !== "admin");
     if (counter) counter.textContent = setores.length;
-
-    if (!setores.length) {
-        container.innerHTML = '<p class="preview-empty">Nenhum setor cadastrado ainda.</p>';
-        return;
-    }
-
+    if (!setores.length) { container.innerHTML = '<p class="preview-empty">Nenhum setor cadastrado ainda.</p>'; return; }
     container.innerHTML = setores.map(role => {
         const meta     = _metaSetor(role.name);
         const qtdUsers = allUsers.filter(u => u.roles.some(r => r.id === role.id)).length;
-        return `
-        <div class="preview-sector-card">
-            <div class="preview-sector-icon">${meta.emoji}</div>
-            <div class="preview-sector-info">
-                <span class="preview-sector-name">${role.name}</span>
-                <span class="preview-sector-count">${qtdUsers} usuário${qtdUsers !== 1 ? "s" : ""}</span>
-            </div>
-        </div>`;
+        return `<div class="preview-sector-card"><div class="preview-sector-icon">${meta.emoji}</div><div class="preview-sector-info"><span class="preview-sector-name">${role.name}</span><span class="preview-sector-count">${qtdUsers} usuário${qtdUsers !== 1 ? "s" : ""}</span></div></div>`;
     }).join("");
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-//  TABELA DE USUÁRIOS
+//  TABELAS
 // ════════════════════════════════════════════════════════════════════════════
 
 function renderizarTabelaUsuarios(filtro = "") {
@@ -699,24 +479,17 @@ function renderizarTabelaUsuarios(filtro = "") {
             else                                                   classe += "role-user";
             return `<span class="${classe}">${r.name}</span>`;
         }).join(" ");
-
         tr.innerHTML = `
             <td>${user.username}</td>
             <td>${formatarNome(user.username)}</td>
             <td>${badgesRole}</td>
-            <td>
-                <div class="actions-cell">
-                    <button class="btn-edit"   onclick="abrirEditarUsuario(${user.id})">${SVG.edit} Editar</button>
-                    <button class="btn-delete" onclick="confirmarExclusao(${user.id}, 'user')">${SVG.trash} Excluir</button>
-                </div>
-            </td>`;
+            <td><div class="actions-cell">
+                <button class="btn-edit"   onclick="abrirEditarUsuario(${user.id})">${SVG.edit} Editar</button>
+                <button class="btn-delete" onclick="confirmarExclusao(${user.id}, 'user')">${SVG.trash} Excluir</button>
+            </div></td>`;
         tbody.appendChild(tr);
     });
 }
-
-// ════════════════════════════════════════════════════════════════════════════
-//  TABELA DE SETORES
-// ════════════════════════════════════════════════════════════════════════════
 
 function renderizarTabelaSetores(filtro = "") {
     const tbody = document.getElementById("sectors-table-body");
@@ -739,19 +512,15 @@ function renderizarTabelaSetores(filtro = "") {
 
     setores.forEach(role => {
         const tr     = document.createElement("tr");
-        const criado = role.created_at
-            ? new Date(role.created_at).toLocaleDateString("pt-BR")
-            : "—";
+        const criado = role.created_at ? new Date(role.created_at).toLocaleDateString("pt-BR") : "—";
         tr.innerHTML = `
             <td>${role.name}</td>
             <td>${role.description || "—"}</td>
             <td>${criado}</td>
-            <td>
-                <div class="actions-cell">
-                    <button class="btn-edit"   onclick="abrirEditarSetor(${role.id})">${SVG.edit} Editar</button>
-                    <button class="btn-delete" onclick="confirmarExclusao(${role.id}, 'sector')">${SVG.trash} Excluir</button>
-                </div>
-            </td>`;
+            <td><div class="actions-cell">
+                <button class="btn-edit"   onclick="abrirEditarSetor(${role.id})">${SVG.edit} Editar</button>
+                <button class="btn-delete" onclick="confirmarExclusao(${role.id}, 'sector')">${SVG.trash} Excluir</button>
+            </div></td>`;
         tbody.appendChild(tr);
     });
 }
@@ -761,18 +530,26 @@ function renderizarTabelaSetores(filtro = "") {
 // ════════════════════════════════════════════════════════════════════════════
 
 function configurarBuscas() {
-    document.getElementById("search-users")?.addEventListener("input",
-        e => renderizarTabelaUsuarios(e.target.value.trim()));
-    document.getElementById("search-sectors")?.addEventListener("input",
-        e => renderizarTabelaSetores(e.target.value.trim()));
-    document.getElementById("search-perm-viewer")?.addEventListener("input",
-        e => renderizarListaViewers(e.target.value.trim()));
-    document.getElementById("search-perm-target")?.addEventListener("input",
-        e => filtrarTargets(e.target.value.trim()));
+    document.getElementById("search-users")?.addEventListener("input", e => renderizarTabelaUsuarios(e.target.value.trim()));
+    document.getElementById("search-sectors")?.addEventListener("input", e => renderizarTabelaSetores(e.target.value.trim()));
+    document.getElementById("search-perm-viewer")?.addEventListener("input", e => renderizarListaViewers(e.target.value.trim()));
+    document.getElementById("search-perm-target")?.addEventListener("input", e => filtrarTargets(e.target.value.trim()));
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-//  ABA PERMISSÕES DE VISIBILIDADE
+//  ABAS
+// ════════════════════════════════════════════════════════════════════════════
+
+function switchTab(aba) {
+    ["users", "sectors", "permissoes"].forEach(s => {
+        document.getElementById(`section-${s}`)?.classList.toggle("hidden",  s !== aba);
+        document.getElementById(`tab-${s}-btn`)?.classList.toggle("active",  s === aba);
+    });
+    if (aba === "permissoes") renderizarAbaPermissoes();
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+//  ABA PERMISSÕES
 // ════════════════════════════════════════════════════════════════════════════
 
 async function renderizarAbaPermissoes() {
@@ -811,10 +588,7 @@ function renderizarListaViewers(filtro = "", data = null) {
         );
     }
 
-    if (!usuarios.length) {
-        container.innerHTML = `<p class="preview-empty">Nenhum usuário encontrado.</p>`;
-        return;
-    }
+    if (!usuarios.length) { container.innerHTML = `<p class="preview-empty">Nenhum usuário encontrado.</p>`; return; }
 
     container.innerHTML = usuarios.map(u => {
         const nome        = formatarNome(u.username);
@@ -824,19 +598,14 @@ function renderizarListaViewers(filtro = "", data = null) {
         const qtdTargets  = entrada ? (entrada.can_see || []).length : 0;
         const qtdSetores  = entrada ? (entrada.sectors || []).length : 0;
         const temPerm     = qtdTargets > 0 || qtdSetores > 0;
-        const parts = [];
-        if (qtdSetores > 0) parts.push(`${qtdSetores} setor${qtdSetores > 1 ? "es" : ""}`);
-        if (qtdTargets > 0) parts.push(`${qtdTargets} colega${qtdTargets > 1 ? "s" : ""}`);
-
         return `
-        <div class="perm-viewer-card ${selecionado ? "selecionado" : ""}"
-             onclick="selecionarViewer(${u.id})" data-viewer-id="${u.id}">
+        <div class="perm-viewer-card ${selecionado ? "selecionado" : ""}" onclick="selecionarViewer(${u.id})" data-viewer-id="${u.id}">
             <div class="perm-avatar" style="background:${cor}22;color:${cor}">${nome.charAt(0).toUpperCase()}</div>
             <div class="perm-viewer-info">
                 <span class="perm-viewer-nome">${nome}</span>
                 <span class="perm-viewer-email">${u.username}</span>
             </div>
-            <div class="perm-viewer-badge ${temPerm ? "com-perm" : "sem-perm"}" title="${parts.join(" + ")}">
+            <div class="perm-viewer-badge ${temPerm ? "com-perm" : "sem-perm"}">
                 ${temPerm ? SVG.eye : SVG.eyeOff}
             </div>
         </div>`;
@@ -847,15 +616,12 @@ function renderizarListaViewers(filtro = "", data = null) {
 
 async function selecionarViewer(viewerId) {
     permViewerSelecionado = viewerId;
-
     document.querySelectorAll(".perm-viewer-card").forEach(el => {
         el.classList.toggle("selecionado", parseInt(el.dataset.viewerId) === viewerId);
     });
-
     document.getElementById("perm-targets-painel")?.classList.remove("hidden");
     document.getElementById("perm-painel-vazio")?.classList.add("hidden");
 
-    // Carrega do cache enquanto busca do server
     const entradaCache = (_permCache.permissoes || []).find(p => p.viewer_id === viewerId);
     permTargetsSelecionados = entradaCache ? (entradaCache.can_see || []).map(t => t.target_id || t.id) : [];
     permSetoresSelecionados = entradaCache ? (entradaCache.sectors || []) : [];
@@ -955,23 +721,16 @@ function renderizarListaTargets(filtro = "") {
         );
     }
 
-    if (!possiveis.length) {
-        container.innerHTML = `<p class="preview-empty" style="padding:.75rem 0">Nenhum usuário disponível.</p>`;
-        return;
-    }
+    if (!possiveis.length) { container.innerHTML = `<p class="preview-empty" style="padding:.75rem 0">Nenhum usuário disponível.</p>`; return; }
 
     container.innerHTML = possiveis.map(u => {
         const nome      = formatarNome(u.username);
         const cor       = avatarColor(u.id);
         const iniciais  = nome.split(" ").map(p => p[0]).slice(0, 2).join("").toUpperCase();
         const marcado   = permTargetsSelecionados.includes(u.id);
-        const setorNome = u.roles
-            .filter(r => r.name.toLowerCase() !== "admin")
-            .map(r => r.name).join(", ") || "Sem setor";
-
+        const setorNome = u.roles.filter(r => r.name.toLowerCase() !== "admin").map(r => r.name).join(", ") || "Sem setor";
         return `
-        <div class="perm-target-item ${marcado ? "marcado" : ""}"
-             data-target-id="${u.id}" onclick="toggleTarget(${u.id})">
+        <div class="perm-target-item ${marcado ? "marcado" : ""}" data-target-id="${u.id}" onclick="toggleTarget(${u.id})">
             <div class="perm-radio"><div class="perm-radio-dot"></div></div>
             <div class="perm-avatar" style="background:${cor}22;color:${cor};width:32px;height:32px;font-size:.7rem;flex-shrink:0">${iniciais}</div>
             <div class="perm-target-info">
@@ -1090,48 +849,35 @@ function _atualizarBadgeViewer(viewerId, qtd) {
 
 function configurarFormularios() {
 
-    // ── Criar usuário ─────────────────────────────────────────────────────────
     document.getElementById("user-form")?.addEventListener("submit", async e => {
         e.preventDefault();
         const btn = document.querySelector('[form="user-form"].btn-submit');
         if (btn) btn.disabled = true;
-
         const roleDropdown = document.getElementById("user-role-dropdown");
         const papel = roleDropdown?._getValue ? roleDropdown._getValue() : "user";
-
         const payload = {
             username: document.getElementById("user-email").value.trim(),
             password: document.getElementById("user-password").value,
             role:     papel,
             role_ids: [...selectedSectorIds]
         };
-
         if (papel === "admin") {
             const adminRole = allRoles.find(r => r.name.toLowerCase() === "admin");
-            if (adminRole && !payload.role_ids.includes(adminRole.id)) {
-                payload.role_ids.push(adminRole.id);
-            }
+            if (adminRole && !payload.role_ids.includes(adminRole.id)) payload.role_ids.push(adminRole.id);
         }
-
         try {
             const res = await fetch(`${API}/admin/users`, {
-                method:  "POST",
-                headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-                body:    JSON.stringify(payload)
+                method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                body: JSON.stringify(payload)
             });
             if (res.status === 401) { redirecionarLogin(); return; }
             if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.detail || `Erro ${res.status}`); }
-
             e.target.reset();
             selectedSectorIds = [];
-            const dropSetores = document.getElementById("sectors-list-badges");
-            if (dropSetores?._reset) dropSetores._reset();
-            const dropRole = document.getElementById("user-role-dropdown");
-            if (dropRole?._reset) dropRole._reset();
-
+            document.getElementById("sectors-list-badges")?._reset?.();
+            document.getElementById("user-role-dropdown")?._reset?.();
             await carregarDados();
             showToast("Usuário criado com sucesso!", "success");
-
         } catch (err) {
             console.error("❌ criar usuário:", err);
             showToast(err.message, "error");
@@ -1140,30 +886,24 @@ function configurarFormularios() {
         }
     });
 
-    // ── Criar setor ───────────────────────────────────────────────────────────
     document.getElementById("sector-form")?.addEventListener("submit", async e => {
         e.preventDefault();
         const btn = document.querySelector('[form="sector-form"].btn-submit');
         if (btn) btn.disabled = true;
-
         const payload = {
             name:        document.getElementById("sector-name").value.trim(),
             description: document.getElementById("sector-description").value.trim()
         };
-
         try {
             const res = await fetch(`${API}/admin/roles`, {
-                method:  "POST",
-                headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-                body:    JSON.stringify(payload)
+                method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                body: JSON.stringify(payload)
             });
             if (res.status === 401) { redirecionarLogin(); return; }
             if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.detail || `Erro ${res.status}`); }
-
             e.target.reset();
             await carregarDados();
             showToast("Setor criado com sucesso!", "success");
-
         } catch (err) {
             console.error("❌ criar setor:", err);
             showToast(err.message, "error");
@@ -1172,33 +912,24 @@ function configurarFormularios() {
         }
     });
 
-    // ── Editar usuário ────────────────────────────────────────────────────────
     document.getElementById("edit-user-form")?.addEventListener("submit", async e => {
         e.preventDefault();
         const btn = e.target.querySelector(".btn-submit");
         if (btn) btn.disabled = true;
-
         const userId  = document.getElementById("edit-user-id").value;
-        const payload = {
-            username: document.getElementById("edit-user-email").value.trim(),
-            role_ids: [...editSectorIds]
-        };
+        const payload = { username: document.getElementById("edit-user-email").value.trim(), role_ids: [...editSectorIds] };
         const senha = document.getElementById("edit-user-password").value;
         if (senha) payload.password = senha;
-
         try {
             const res = await fetch(`${API}/admin/users/${userId}`, {
-                method:  "PUT",
-                headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-                body:    JSON.stringify(payload)
+                method: "PUT", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                body: JSON.stringify(payload)
             });
             if (res.status === 401) { redirecionarLogin(); return; }
             if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.detail || `Erro ${res.status}`); }
-
             closeEditUserModal();
             await carregarDados();
             showToast("Usuário atualizado!", "success");
-
         } catch (err) {
             console.error("❌ editar usuário:", err);
             showToast(err.message, "error");
@@ -1207,30 +938,25 @@ function configurarFormularios() {
         }
     });
 
-    // ── Editar setor ──────────────────────────────────────────────────────────
     document.getElementById("edit-sector-form")?.addEventListener("submit", async e => {
         e.preventDefault();
-        const btn      = e.target.querySelector(".btn-submit");
+        const btn = e.target.querySelector(".btn-submit");
         if (btn) btn.disabled = true;
         const sectorId = document.getElementById("edit-sector-id").value;
         const payload  = {
             name:        document.getElementById("edit-sector-name").value.trim(),
             description: document.getElementById("edit-sector-description").value.trim()
         };
-
         try {
             const res = await fetch(`${API}/admin/roles/${sectorId}`, {
-                method:  "PUT",
-                headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-                body:    JSON.stringify(payload)
+                method: "PUT", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                body: JSON.stringify(payload)
             });
             if (res.status === 401) { redirecionarLogin(); return; }
             if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.detail || `Erro ${res.status}`); }
-
             closeEditSectorModal();
             await carregarDados();
             showToast("Setor atualizado!", "success");
-
         } catch (err) {
             console.error("❌ editar setor:", err);
             showToast(err.message, "error");
@@ -1239,29 +965,19 @@ function configurarFormularios() {
         }
     });
 
-    // ── Confirmar exclusão ────────────────────────────────────────────────────
     document.getElementById("confirm-delete-btn")?.addEventListener("click", async () => {
         const { id, type } = itemToDelete;
         if (!id) return;
-
-        const endpoint   = type === "user"
-            ? `${API}/admin/users/${id}`
-            : `${API}/admin/roles/${id}`;
+        const endpoint   = type === "user" ? `${API}/admin/users/${id}` : `${API}/admin/roles/${id}`;
         const btnConfirm = document.getElementById("confirm-delete-btn");
         if (btnConfirm) btnConfirm.disabled = true;
-
         try {
-            const res = await fetch(endpoint, {
-                method:  "DELETE",
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            const res = await fetch(endpoint, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
             if (res.status === 401) { redirecionarLogin(); return; }
             if (!res.ok) throw new Error(`Erro ${res.status}`);
-
             closeDeleteModal();
             await carregarDados();
             showToast("Item excluído com sucesso!", "success");
-
         } catch (err) {
             console.error("❌ excluir:", err);
             showToast(err.message, "error");
@@ -1278,26 +994,19 @@ function configurarFormularios() {
 function abrirEditarUsuario(userId) {
     const user = allUsers.find(u => u.id === userId);
     if (!user) return;
-
-    editSectorIds = user.roles
-        .filter(r => r.name.toLowerCase() !== "admin")
-        .map(r => r.id);
-
+    editSectorIds = user.roles.filter(r => r.name.toLowerCase() !== "admin").map(r => r.id);
     document.getElementById("edit-user-id").value       = user.id;
     document.getElementById("edit-user-email").value    = user.username;
     document.getElementById("edit-user-name").value     = formatarNome(user.username);
     document.getElementById("edit-user-password").value = "";
-
     const setores = allRoles.filter(r => r.name.toLowerCase() !== "admin");
     criarDropdownSetores("edit-sectors-list", setores, editSectorIds);
-
     document.getElementById("edit-user-modal").classList.remove("hidden");
 }
 
 function closeEditUserModal() {
     document.getElementById("edit-user-modal").classList.add("hidden");
-    const editContainer = document.getElementById("edit-sectors-list");
-    if (editContainer?._destroy) editContainer._destroy();
+    document.getElementById("edit-sectors-list")?._destroy?.();
     editSectorIds = [];
 }
 
@@ -1310,9 +1019,7 @@ function abrirEditarSetor(sectorId) {
     document.getElementById("edit-sector-modal").classList.remove("hidden");
 }
 
-function closeEditSectorModal() {
-    document.getElementById("edit-sector-modal").classList.add("hidden");
-}
+function closeEditSectorModal() { document.getElementById("edit-sector-modal").classList.add("hidden"); }
 
 function confirmarExclusao(id, type) {
     itemToDelete = { id, type };
@@ -1322,18 +1029,6 @@ function confirmarExclusao(id, type) {
 function closeDeleteModal() {
     document.getElementById("delete-modal").classList.add("hidden");
     itemToDelete = { id: null, type: null };
-}
-
-// ════════════════════════════════════════════════════════════════════════════
-//  ABAS
-// ════════════════════════════════════════════════════════════════════════════
-
-function switchTab(aba) {
-    ["users", "sectors", "permissoes"].forEach(s => {
-        document.getElementById(`section-${s}`)?.classList.toggle("hidden",  s !== aba);
-        document.getElementById(`tab-${s}-btn`)?.classList.toggle("active",  s === aba);
-    });
-    if (aba === "permissoes") renderizarAbaPermissoes();
 }
 
 // ════════════════════════════════════════════════════════════════════════════
