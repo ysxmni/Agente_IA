@@ -4,6 +4,44 @@
 
 const API = "https://agente-ia-62sa.onrender.com";
 
+// ── PATCH: adiciona variáveis CSS faltantes ao :root (perspectiva/escopo) ───
+// O style.css usa --text-secondary, --blue-dim, --accent-blue, --border-focus
+// que não estão declaradas no :root original. Isso causa os elementos ficarem
+// invisíveis. Injetamos aqui para não precisar editar o style.css.
+(function _patchCSSVars() {
+    const s = document.createElement("style");
+    s.id = "opersan-css-patch";
+    s.textContent = `
+        :root {
+            --text-secondary:  #94a3b8;
+            --text-primary:    #ffffff;
+            --blue-dim:        rgba(59,130,246,0.08);
+            --accent-blue:     #60a5fa;
+            --border-focus:    rgba(59,130,246,0.4);
+            --input-bg:        #1a253d;
+        }
+        /* Setores visíveis badges — não estavam no style.css */
+        .setores-visiveis-wrap {
+            display: flex;
+            flex-direction: column;
+            gap: .35rem;
+            padding-top: .5rem;
+            border-top: 1px solid rgba(255,255,255,.06);
+        }
+        .setor-visivel-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: .35rem;
+            padding: .22rem .65rem;
+            border-radius: 7px;
+            font-size: .74rem;
+            font-weight: 600;
+        }
+        .setor-visivel-badge svg { width:13px; height:13px; }
+    `;
+    document.head.appendChild(s);
+})();
+
 // ─── BIBLIOTECA DE ÍCONES SVG INLINE ─────────────────────────────────────────
 const IC = {
     scale:          `<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 16l3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1z"/><path d="M2 16l3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1z"/><path d="M7 21h10"/><line x1="12" y1="3" x2="12" y2="21"/><path d="M3 7h2c2 0 5-1 7-2 2 1 5 2 7 2h2"/></svg>`,

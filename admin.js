@@ -5,6 +5,81 @@
 const API   = "https://agente-ia-62sa.onrender.com";
 const token = localStorage.getItem("userToken") || localStorage.getItem("token") || "";
 
+// ── INJECT CSS — garante que os estilos do dropdown existam independente do admin.css ──
+(function _injectAdminStyles() {
+    if (document.getElementById("admin-dropdown-styles")) return;
+    const s = document.createElement("style");
+    s.id = "admin-dropdown-styles";
+    s.textContent = `
+        /* ── Trigger ── */
+        .badges-dropdown-trigger {
+            display:flex; align-items:center; justify-content:space-between;
+            gap:.5rem; width:100%; min-height:40px;
+            padding:.45rem .85rem;
+            background:#0d1117; border:1px solid rgba(255,255,255,.08);
+            border-radius:8px; cursor:pointer;
+            transition:border-color .15s; text-align:left;
+            font-family:inherit;
+        }
+        .badges-dropdown-trigger:hover,
+        .badges-dropdown-trigger.open { border-color:#3b82f6; }
+        .badges-dropdown-trigger-left {
+            display:flex; flex-wrap:wrap; gap:.3rem; flex:1; min-width:0;
+        }
+        .badges-dropdown-trigger-placeholder {
+            font-size:.8rem; color:#475569; padding:.1rem 0;
+        }
+        .badges-dropdown-trigger-arrow {
+            color:#475569; flex-shrink:0;
+            transition:transform .2s; display:flex; align-items:center;
+        }
+        .badges-dropdown-trigger.open .badges-dropdown-trigger-arrow { transform:rotate(180deg); }
+
+        /* ── Mini badge no trigger ── */
+        .badge-mini {
+            display:inline-flex; align-items:center;
+            padding:.2rem .55rem; border-radius:5px;
+            font-size:.74rem; font-weight:600;
+            background:#1e293b; color:#94a3b8;
+            border:1px solid #334155; white-space:nowrap;
+        }
+        .badge-mini.juridico        { background:#3b82f612; color:#93c5fd; border-color:#3b82f625; }
+        .badge-mini.suprimentos     { background:#10b98112; color:#6ee7b7; border-color:#10b98125; }
+        .badge-mini.gestaocontratos { background:#f59e0b12; color:#fcd34d; border-color:#f59e0b25; }
+        .badge-mini.admin           { background:#ef444412; color:#fca5a5; border-color:#ef444425; }
+
+        /* ── Painel flutuante (portal no body) ── */
+        .badges-dropdown-panel {
+            position:fixed; z-index:99999;
+            background:#0d1117; border:1px solid rgba(255,255,255,.1);
+            border-radius:10px; padding:.4rem;
+            display:none; flex-direction:column; gap:.2rem;
+            max-height:230px; overflow-y:auto;
+            box-shadow:0 12px 40px rgba(0,0,0,.7);
+        }
+        .badges-dropdown-panel.open { display:flex; }
+
+        /* ── Item dentro do painel ── */
+        .badges-dropdown-panel .badge {
+            display:flex; align-items:center; justify-content:space-between;
+            gap:.5rem; padding:.45rem .7rem; border-radius:7px;
+            border:1px solid transparent; cursor:pointer;
+            font-size:.8rem; transition:all .12s; color:#e2e8f0;
+        }
+        .badges-dropdown-panel .badge:hover { background:#1e293b; border-color:#334155; }
+        .badges-dropdown-panel .badge.active { background:#3b82f612; border-color:#3b82f630; }
+
+        .badge-label-wrap { display:flex; align-items:center; gap:.5rem; }
+        .badge-dot { width:8px; height:8px; border-radius:50%; background:#475569; flex-shrink:0; }
+        .badge-dot.juridico        { background:#3b82f6; }
+        .badge-dot.suprimentos     { background:#10b981; }
+        .badge-dot.gestaocontratos { background:#f59e0b; }
+        .badge-check { color:#3b82f6; flex-shrink:0; display:flex; align-items:center; }
+        .badge-loading { font-size:.8rem; color:#475569; padding:.5rem .75rem; }
+    `;
+    document.head.appendChild(s);
+})();
+
 // ─── ÍCONES SVG INLINE ────────────────────────────────────────────────────────
 const SVG = {
     edit:     `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>`,
