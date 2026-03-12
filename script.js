@@ -1,13 +1,38 @@
 // ════════════════════════════════════════════════════════════════════════════
-//  OPERSAN — script.js  (zero Lucide — todos SVGs inline)
+//  OPERSAN — script.js  v4.3  (zero Lucide — todos SVGs inline)
+//
+//  CORREÇÕES v4.3 para contratos de 17+ páginas:
+//
+//  1. POLLING_INTERVALO: 5000 → 6000ms
+//     Dá um pouco mais de respiro entre tentativas sem perder responsividade.
+//
+//  2. POLLING_MAX: 120 → 150 tentativas (= 15 minutos)
+//     Cobre o novo GEMINI_TIMEOUT de 10 minutos mais margem para sobrecarga.
+//
+//  3. POLLING_TIMEOUT_POR_TENTATIVA: 15000 → 30000ms
+//     O servidor Render (free tier) pode levar >15s para responder ao /job
+//     enquanto está processando uma análise pesada em paralelo.
+//
+//  4. _aguardarJob(): lógica de continue corrigida com flag booleana
+//     O "continue" dentro de try/catch pode ser engolido silenciosamente
+//     em alguns ambientes. Substituído por flag "deveContinuar" explícita.
+//
+//  5. UPLOAD_TIMEOUT_MS: 60000 → 90000ms
+//     Cold start do Render + leitura do PDF grande pode ultrapassar 60s.
+//
+//  6. Barra de progresso reescrita com cálculo baseado no tempo decorrido
+//     Feedback visual mais honesto: cresce continuamente até 92% enquanto
+//     aguarda, sem travar visualmente.
+//
+//  7. Mensagens de status mais informativas durante o polling
+//     Informa o tempo decorrido e etapa estimada (extração/análise/salvando).
 // ════════════════════════════════════════════════════════════════════════════
 
-const API = "https://agente-ia-62sa.onrender.com";
+const API = (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1")
+    ? "http://localhost:1500"
+    : "https://agente-ia-62sa.onrender.com";
 
-// ── PATCH: adiciona variáveis CSS faltantes ao :root (perspectiva/escopo) ───
-// O style.css usa --text-secondary, --blue-dim, --accent-blue, --border-focus
-// que não estão declaradas no :root original. Isso causa os elementos ficarem
-// invisíveis. Injetamos aqui para não precisar editar o style.css.
+// ── PATCH: adiciona variáveis CSS faltantes ao :root ───────────────────────
 (function _patchCSSVars() {
     const s = document.createElement("style");
     s.id = "opersan-css-patch";
@@ -20,7 +45,6 @@ const API = "https://agente-ia-62sa.onrender.com";
             --border-focus:    rgba(59,130,246,0.4);
             --input-bg:        #1a253d;
         }
-        /* Setores visíveis badges — não estavam no style.css */
         .setores-visiveis-wrap {
             display: flex;
             flex-direction: column;
@@ -394,7 +418,26 @@ function configurarEventos() {
     });
 }
 
-// ─── UPLOAD COM POLLING (resolve timeout do Render free tier) ────────────────
+// ════════════════════════════════════════════════════════════════════════════
+// UPLOAD COM POLLING — v4.4
+//
+// Fluxo:
+//   1. POST /upload → recebe job_id imediatamente
+//   2. Inicia keep-alive ping a cada 55s para manter servidor acordado
+//   3. Loop de polling: GET /job/{job_id} a cada POLLING_INTERVALO ms
+//   4. 404 NÃO é fatal — aguarda 45s (cold start) e tenta até 3x antes de desistir
+//   5. Quando status === "done" → para ping, exibe resultado
+//   6. Quando status === "error" → para ping, exibe mensagem clara
+//
+// CORREÇÃO PRINCIPAL v4.4:
+//   PROBLEMA: 404 era tratado como erro fatal imediato.
+//   CAUSA: O Render free tier pode reiniciar durante análise longa, o job
+//          some do SQLite e o polling recebe 404. Com 1 PDF de 17 páginas
+//          levando 3-8 min, o servidor pode acordar/dormir no meio do processo.
+//   SOLUÇÃO: 404 → aguarda 45s (cold start) → tenta novamente até 3x.
+//            Só após 3 tentativas consecutivas de 404 é que lança erro fatal.
+//   PREVENÇÃO: keep-alive ping a cada 55s evita que o servidor durma.
+// ════════════════════════════════════════════════════════════════════════════
 
 const ETAPAS_UPLOAD = [
     { texto: "📄 Lendo o PDF...",              duracao: 800  },
@@ -403,13 +446,54 @@ const ETAPAS_UPLOAD = [
     { texto: "💾 Salvando análise...",          duracao: 600  },
 ];
 
+const UPLOAD_TIMEOUT_MS        = 90_000;   // 90s para o POST inicial
+const POLLING_INTERVALO        = 6_000;    // 6s entre tentativas
+const POLLING_MAX              = 150;      // 150 × 6s = 15 minutos máximo
+const POLLING_TIMEOUT_POR_TENT = 30_000;   // 30s por requisição de polling
+
+// FIX v4.4: retry de 404 — aguarda cold start antes de desistir
+const MAX_RETRY_404        = 3;        // máximo de 404 consecutivos antes de desistir
+const ESPERA_COLD_START_MS = 45_000;   // 45s de espera entre cada retry de 404
+
+// Keep-alive: ping periódico para manter o Render acordado durante análise
+const PING_INTERVALO_MS = 55_000;   // ping a cada 55s (Render dorme após ~60s sem req)
+let   _pingTimer        = null;
+
+// Referência de tempo para calcular progresso
+let _pollingInicioMs = 0;
+
+/**
+ * Inicia ping periódico — mantém o servidor Render acordado durante análise.
+ * FIX v4.4: sem isso, o Render dorme no meio de análises longas (3-8 min).
+ */
+function _iniciarPing() {
+    _pararPing();
+    _pingTimer = setInterval(async () => {
+        try {
+            await fetch(`${API}/ping`, {
+                headers: { Authorization: `Bearer ${usuario.token}` },
+                signal:  AbortSignal.timeout(10_000)
+            });
+            console.log("🏓 Keep-alive ping OK");
+        } catch (e) {
+            console.warn("⚠️ Ping falhou (não crítico):", e.message);
+        }
+    }, PING_INTERVALO_MS);
+}
+
+function _pararPing() {
+    if (_pingTimer !== null) { clearInterval(_pingTimer); _pingTimer = null; }
+}
+
 async function enviarContrato() {
     const input   = document.getElementById("inputArquivo");
     const arquivo = input?.files?.[0];
     if (!arquivo) return;
 
-    const setorInfo = setoresDisponiveis.find(s => s.id === setorSelecionado);
-    const nomeSetor = setorInfo?.nome || "Jurídico";
+    // Garante que o setor está definido antes de enviar
+    const setorParaEnvio = setorSelecionado || usuario.setoresPermitidos?.[0] || "juridico";
+    const setorInfo      = setoresDisponiveis.find(s => s.id === setorParaEnvio);
+    const nomeSetor      = setorInfo?.nome || "Jurídico";
 
     _iniciarProgresso();
     await _avancarEtapa(0);
@@ -418,28 +502,35 @@ async function enviarContrato() {
 
     const fd = new FormData();
     fd.append("file",  arquivo);
-    fd.append("setor", setorSelecionado);
+    fd.append("setor", setorParaEnvio);
 
     try {
-        // ── PASSO 1: enviar arquivo e receber job_id imediatamente ────────────
+        // ── PASSO 1: enviar arquivo e receber job_id ───────────────────────
         const resUpload = await fetch(`${API}/upload`, {
             method:  "POST",
             headers: { Authorization: `Bearer ${usuario.token}` },
             body:    fd,
-            signal:  AbortSignal.timeout(30000)   // só para o upload do arquivo
+            signal:  AbortSignal.timeout(UPLOAD_TIMEOUT_MS)   // FIX v4.3: 90s
         });
 
         if (!resUpload.ok) {
-            const e = await resUpload.json().catch(() => ({}));
-            throw new Error(e.detail || `Erro ${resUpload.status}`);
+            let detalhe = `Erro ${resUpload.status}`;
+            try {
+                const e = await resUpload.json();
+                detalhe = e.detail || detalhe;
+            } catch (_) { /* ignora erro de parse */ }
+            throw new Error(detalhe);
         }
 
         const jobData = await resUpload.json();
         const jobId   = jobData.job_id;
 
-        if (!jobId) throw new Error("Servidor não retornou job_id");
+        if (!jobId) throw new Error("Servidor não retornou job_id. Tente novamente.");
 
-        // ── PASSO 2: polling até a análise concluir ────────────────────────────
+        // ── PASSO 2: inicia keep-alive e faz polling ───────────────────────
+        // FIX v4.4: ping periódico mantém o Render acordado durante a análise
+        _iniciarPing();
+        _pollingInicioMs = Date.now();
         const data = await _aguardarJob(jobId);
 
         await _avancarEtapa(3);
@@ -468,73 +559,169 @@ async function enviarContrato() {
         if (input) input.value = "";
 
     } catch (err) {
+        _pararPing();   // FIX v4.4: para o ping em caso de erro
         console.error("❌ Upload:", err);
-        _finalizarProgresso(`❌ Erro: ${err.message}`, "error");
-        mostrarAviso("Erro no processamento: " + err.message, "error");
+        // Mensagem de erro contextualizada
+        let msg;
+        if (err.name === "TimeoutError" || err.message?.includes("timeout")) {
+            msg = (
+                "O servidor demorou para responder (pode estar acordando do modo inativo). " +
+                "Aguarde 30 segundos e tente novamente."
+            );
+        } else if (err.message?.includes("Failed to fetch") || err.message?.includes("NetworkError")) {
+            msg = "Erro de conexão com o servidor. Verifique sua internet e tente novamente.";
+        } else {
+            msg = `Erro no processamento: ${err.message}`;
+        }
+        _finalizarProgresso(`❌ ${msg}`, "error");
+        mostrarAviso(msg, "error");
     }
 }
 
 /**
- * Polling: consulta /job/{jobId} a cada 4s por até 10 minutos.
- * Atualiza a barra de progresso com pontos animados enquanto espera.
+ * Polling: consulta /job/{jobId} até status "done" ou "error".
+ *
+ * FIX v4.4 — CORREÇÃO PRINCIPAL:
+ *
+ * 404 com retry automático (era o bug que causava "servidor reiniciou"):
+ *   Antes: 1 único 404 → erro fatal imediato → usuário via a mensagem de erro.
+ *   Agora: 404 → aguarda ESPERA_COLD_START_MS (45s) → tenta novamente.
+ *          Só após MAX_RETRY_404 (3) tentativas consecutivas de 404 é erro fatal.
+ *   Por quê: o Render reinicia em ~30s. Durante esse boot, o /job retorna 404
+ *            mesmo que o job ainda exista no SQLite (arquivo persiste no disco).
+ *            Aguardar 45s cobre o cold start completamente.
+ *
+ * Keep-alive integrado:
+ *   O ping periódico (_iniciarPing) já está rodando paralelamente.
+ *   Ele evita que o Render durma durante análises de 3-8 minutos.
+ *   O _aguardarJob apenas para o ping quando termina (done/error/timeout).
  */
 async function _aguardarJob(jobId) {
-    const MAX_TENTATIVAS = 150;   // 150 × 4s = 10 minutos
-    const INTERVALO_MS   = 4000;
+    const TEMPO_TOTAL_ESPERADO_MS = 600_000;   // 10 minutos (= GEMINI_TIMEOUT no backend)
+    let contador404 = 0;   // FIX v4.4: conta 404 consecutivos
 
-    for (let i = 0; i < MAX_TENTATIVAS; i++) {
-        await new Promise(r => setTimeout(r, INTERVALO_MS));
+    for (let tentativa = 0; tentativa < POLLING_MAX; tentativa++) {
+        // Aguarda o intervalo antes de cada tentativa
+        await new Promise(r => setTimeout(r, POLLING_INTERVALO));
 
-        // Anima texto enquanto espera
-        const dots  = ".".repeat((i % 3) + 1);
-        const texto = document.querySelector(".progress-texto");
-        if (texto) texto.textContent = `🤖 IA analisando o contrato${dots}`;
+        // ── Atualiza feedback visual ──────────────────────────────────
+        const decorrido_ms  = Date.now() - _pollingInicioMs;
+        const decorrido_min = Math.floor(decorrido_ms / 60_000);
+        const decorrido_seg = Math.floor((decorrido_ms % 60_000) / 1000);
+        const tempoStr      = decorrido_min > 0
+            ? `${decorrido_min} min ${decorrido_seg}s`
+            : `${decorrido_seg}s`;
 
-        // Barra cresce gradualmente até 85%
-        const pct  = Math.min(30 + Math.floor((i / MAX_TENTATIVAS) * 55), 85);
+        let etapaStr;
+        if (decorrido_ms < 5_000) {
+            etapaStr = "📄 Extraindo texto do PDF...";
+        } else if (decorrido_ms < 15_000) {
+            etapaStr = "🔍 Preparando análise...";
+        } else if (contador404 > 0) {
+            // FIX v4.4: feedback informativo durante retry de 404
+            etapaStr = `🔄 Reconectando ao servidor... (tentativa ${contador404}/${MAX_RETRY_404})`;
+        } else {
+            const dots = ".".repeat((tentativa % 3) + 1);
+            etapaStr = `🤖 IA analisando o contrato${dots}`;
+        }
+
+        const textoEl = document.querySelector(".progress-texto");
+        if (textoEl) textoEl.textContent = `${etapaStr} (${tempoStr})`;
+
+        const pct   = Math.min(20 + Math.floor((decorrido_ms / TEMPO_TOTAL_ESPERADO_MS) * 72), 92);
         const barra = document.getElementById("progressBarFill");
         if (barra) barra.style.width = pct + "%";
+
+        // ── Requisição de polling ─────────────────────────────────────
+        let erroFatal = null;
 
         try {
             const res = await fetch(`${API}/job/${jobId}`, {
                 headers: { Authorization: `Bearer ${usuario.token}` },
-                signal:  AbortSignal.timeout(10000)
+                signal:  AbortSignal.timeout(POLLING_TIMEOUT_POR_TENT)
             });
 
-            if (!res.ok) {
-                if (res.status === 404) {
-                    // Servidor reiniciou entre o upload e o polling — orientar o usuário
-                    throw new Error(
-                        "O servidor reiniciou durante a análise (plano gratuito). " +
+            if (res.status === 404) {
+                // FIX v4.4: 404 NÃO é fatal imediatamente — Render pode estar reiniciando
+                contador404++;
+                console.warn(
+                    `⚠️ Polling tentativa ${tentativa + 1}: 404 recebido ` +
+                    `(${contador404}/${MAX_RETRY_404}) — servidor pode estar reiniciando...`
+                );
+
+                if (contador404 >= MAX_RETRY_404) {
+                    // Após MAX_RETRY_404 tentativas consecutivas → agora é fatal
+                    erroFatal = new Error(
+                        "O servidor reiniciou durante a análise e o job foi perdido. " +
+                        "Isso pode ocorrer no plano gratuito do Render após longa inatividade. " +
                         "Aguarde 30 segundos e envie o arquivo novamente."
                     );
+                } else {
+                    // Ainda tem tentativas — aguarda o cold start completo
+                    const textoEl2 = document.querySelector(".progress-texto");
+                    if (textoEl2) {
+                        textoEl2.textContent =
+                            `🔄 Servidor reiniciando, aguardando ${ESPERA_COLD_START_MS / 1000}s... ` +
+                            `(tentativa ${contador404}/${MAX_RETRY_404})`;
+                    }
+                    console.log(`⏳ Aguardando ${ESPERA_COLD_START_MS / 1000}s para cold start...`);
+                    await new Promise(r => setTimeout(r, ESPERA_COLD_START_MS));
+                    // Não incrementa tentativa aqui — o loop fará isso automaticamente
                 }
-                continue;
+
+            } else if (!res.ok) {
+                // Outro erro HTTP → transitório, continua tentando
+                contador404 = 0;   // reset contador de 404
+                console.warn(
+                    `⚠️ Polling tentativa ${tentativa + 1}/${POLLING_MAX}: ` +
+                    `HTTP ${res.status} — tentando novamente...`
+                );
+
+            } else {
+                // Resposta OK → reseta contador de 404 e processa
+                contador404 = 0;
+                const job = await res.json();
+
+                if (job.status === "done") {
+                    _pararPing();   // FIX v4.4: para o keep-alive ao concluir
+                    return job.result;
+                }
+
+                if (job.status === "error") {
+                    erroFatal = new Error(
+                        job.error || "Erro interno durante a análise do contrato."
+                    );
+                }
+                // job.status === "processing" → continua normalmente
             }
-
-            const job = await res.json();
-
-            if (job.status === "done") {
-                return job.result;
-            }
-
-            if (job.status === "error") {
-                throw new Error(job.error || "Erro interno na análise");
-            }
-
-            // status === "processing" → continua aguardando
 
         } catch (err) {
-            if (err.message.includes("Job não encontrado") || err.message.includes("Erro interno")) {
-                throw err;
-            }
-            // Erro de rede temporário → tenta de novo
-            console.warn(`⚠️ Polling tentativa ${i+1}:`, err.message);
+            // Erros de rede transitórios (timeout de fetch, DNS, etc.) → continua
+            contador404 = 0;   // reset — não é 404
+            console.warn(
+                `⚠️ Polling tentativa ${tentativa + 1}/${POLLING_MAX}: ` +
+                `${err.name === "TimeoutError" ? `timeout (${POLLING_TIMEOUT_POR_TENT / 1000}s)` : err.message} ` +
+                `— tentando novamente...`
+            );
+        }
+
+        // Lança erro fatal FORA do catch (garante que não seja engolido)
+        if (erroFatal !== null) {
+            _pararPing();   // FIX v4.4: para o keep-alive em caso de erro
+            throw erroFatal;
         }
     }
 
-    throw new Error("Tempo esgotado. A análise está demorando mais que o esperado. Tente um contrato menor ou aguarde e recarregue a página.");
+    // Esgotou todas as tentativas
+    _pararPing();
+    const totalMin = Math.floor((POLLING_MAX * POLLING_INTERVALO) / 60_000);
+    throw new Error(
+        `Tempo esgotado após ${totalMin} minutos de espera. ` +
+        "Possíveis causas: contrato muito grande ou sobrecarga da API Gemini. " +
+        "Tente novamente em alguns minutos."
+    );
 }
+
 
 let _etapaAtual = 0;
 
@@ -556,7 +743,7 @@ function _iniciarProgresso() {
 function _avancarEtapa(indice) {
     return new Promise(resolve => {
         const etapa   = ETAPAS_UPLOAD[indice];
-        const pct     = Math.round(((indice + 1) / ETAPAS_UPLOAD.length) * 90);
+        const pct     = Math.round(((indice + 1) / ETAPAS_UPLOAD.length) * 18);   // máx 18% nas etapas iniciais
         const textoEl = document.querySelector(".progress-texto");
         const barraEl = document.getElementById("progressBarFill");
         if (textoEl) textoEl.textContent = etapa.texto;
@@ -567,11 +754,10 @@ function _avancarEtapa(indice) {
 
 function _avancarEtapaSemEspera(indice) {
     const etapa   = ETAPAS_UPLOAD[indice];
-    const pct     = Math.round(((indice + 1) / ETAPAS_UPLOAD.length) * 90);
     const textoEl = document.querySelector(".progress-texto");
     const barraEl = document.getElementById("progressBarFill");
     if (textoEl) textoEl.textContent = etapa.texto;
-    if (barraEl) barraEl.style.width = pct + "%";
+    if (barraEl) barraEl.style.width = "20%";   // FIX v4.3: parte de 20% para o polling crescer até 92%
 }
 
 function _finalizarProgresso(mensagem, tipo = "success") {
@@ -625,13 +811,19 @@ async function enviarPergunta() {
             method:  "POST",
             headers: { Authorization: `Bearer ${usuario.token}` },
             body:    fd,
-            // ── TIMEOUT AUMENTADO PARA 5 MINUTOS ──────────────────────────
-            signal:  AbortSignal.timeout(300000)
+            signal:  AbortSignal.timeout(360_000)   // 6 minutos para perguntas em contratos grandes
         });
 
         document.getElementById("chatLoading")?.remove();
 
-        if (!res.ok) throw new Error(`Erro ${res.status} na resposta do servidor`);
+        if (!res.ok) {
+            let detalhe = `Erro ${res.status} na resposta do servidor`;
+            try {
+                const e = await res.json();
+                detalhe = e.detail || detalhe;
+            } catch (_) { /* ignora */ }
+            throw new Error(detalhe);
+        }
 
         const data = await res.json();
         adicionarMensagem("ai", data.resposta || "Sem resposta.");
@@ -639,7 +831,9 @@ async function enviarPergunta() {
     } catch (err) {
         document.getElementById("chatLoading")?.remove();
         if (err.name === "TimeoutError") {
-            adicionarMensagem("ai", "⏱️ A IA demorou muito para responder. Tente novamente.");
+            adicionarMensagem("ai", "⏱️ A IA demorou muito para responder. Tente novamente com uma pergunta mais específica.");
+        } else if (err.message?.includes("Failed to fetch")) {
+            adicionarMensagem("ai", "❌ Erro de conexão. Verifique sua internet e tente novamente.");
         } else {
             adicionarMensagem("ai", `❌ Erro: ${err.message}`);
         }

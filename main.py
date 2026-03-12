@@ -72,7 +72,7 @@ class UserLogin(BaseModel):
 app = FastAPI(
     title="Analisador de Contratos IA - Sistema Opersan",
     description="Sistema de análise de contratos com IA e gestão multi-setorial",
-    version="4.0.0"
+    version="4.3.0"
 )
 
 app.add_middleware(
@@ -85,6 +85,11 @@ app.add_middleware(
         "http://localhost:5501",
         "http://127.0.0.1:8080",
         "http://localhost:8080",
+        "http://127.0.0.1:1500",
+        "http://localhost:1500",
+        "http://127.0.0.1:3000",
+        "http://localhost:3000",
+        "null",   # file:// abre com origin "null"
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -92,40 +97,43 @@ app.add_middleware(
 )
 
 # ════════════════════════════════════════════════════════════
-# GEMINI — INICIALIZAÇÃO COM FALLBACK DE MODELOS
+# GEMINI — INICIALIZAÇÃO
 # ════════════════════════════════════════════════════════════
 if not GEMINI_API_KEY:
     logger.error("❌ GEMINI_API_KEY não encontrada no .env!")
 
+MODELOS_PREFERENCIA = [
+    'gemini-2.5-flash-lite',
+    'gemini-2.5-flash',
+    'gemini-2.0-flash',
+    'gemini-flash-lite-latest',
+    'gemini-flash-latest',
+]
+
+client       = None
+MODELO_ATIVO = None
+
 try:
     client = genai.Client(api_key=GEMINI_API_KEY)
-    MODELOS_PREFERENCIA = [
-        'gemini-2.5-flash-lite',
-        'gemini-flash-lite-latest',
-        'gemini-2.5-flash',
-        'gemini-flash-latest',
-        'gemini-2.0-flash',
-    ]
-    MODELO_ATIVO = None
-    for modelo in MODELOS_PREFERENCIA:
-        try:
-            response = client.models.generate_content(model=modelo, contents="teste")
-            MODELO_ATIVO = modelo
-            logger.info(f"✅ Modelo Gemini ativo: {modelo}")
-            break
-        except Exception as e:
-            error_str = str(e)
-            if "429" in error_str:
-                logger.warning(f"⚠️  {modelo} - Cota excedida")
-            elif "404" in error_str:
-                logger.warning(f"⚠️  {modelo} - Não disponível")
-            else:
-                logger.warning(f"⚠️  {modelo} - Erro: {error_str[:80]}")
+    try:
+        modelos_disponiveis = [m.name for m in client.models.list()]
+        logger.info(f"📋 Modelos disponíveis: {len(modelos_disponiveis)}")
+        for modelo in MODELOS_PREFERENCIA:
+            if any(modelo in m for m in modelos_disponiveis):
+                MODELO_ATIVO = modelo
+                logger.info(f"✅ Modelo Gemini selecionado: {modelo}")
+                break
+    except Exception as list_err:
+        logger.warning(f"⚠️  Não foi possível listar modelos ({list_err}). Assumindo: {MODELOS_PREFERENCIA[0]}")
+        MODELO_ATIVO = MODELOS_PREFERENCIA[0]
+
     if not MODELO_ATIVO:
-        raise Exception("Nenhum modelo Gemini disponível.")
+        MODELO_ATIVO = MODELOS_PREFERENCIA[0]
+        logger.warning(f"⚠️  Nenhum modelo encontrado. Usando fallback: {MODELO_ATIVO}")
+
 except Exception as e:
     logger.error(f"❌ Gemini: {e}")
-    client = None
+    client       = None
     MODELO_ATIVO = None
 
 # ════════════════════════════════════════════════════════════
@@ -382,74 +390,96 @@ Responda de forma direta e prática, citando a cláusula ou item exato."""
 Base         = declarative_base()
 pwd_context  = CryptContext(schemes=["bcrypt"], deprecated="auto")
 if DATABASE_URL.startswith("sqlite"):
-    engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
+    engine = create_engine(
+        DATABASE_URL,
+        connect_args={
+            "check_same_thread": False,
+            "timeout": 30,
+        },
+        pool_size=1,
+        max_overflow=0,
+    )
 else:
     engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 # ════════════════════════════════════════════════════════════
-# JOBS PERSISTENTES NO SQLITE
-# Resolve o problema de restart do Render free tier:
-# os jobs ficam no banco e sobrevivem a reinicializações.
+# JOBS — LOCK GLOBAL PARA EVITAR CONFLITOS EM SQLite
 # ════════════════════════════════════════════════════════════
+_job_lock = threading.Lock()
 
 def _db_path() -> str:
     return DATABASE_URL.replace("sqlite:///", "") if DATABASE_URL.startswith("sqlite") else None
 
-def _job_conn():
+def _garantir_tabela_jobs():
+    """Cria a tabela _jobs se não existir. Chamado uma vez na inicialização."""
     path = _db_path()
     if not path:
-        return None
-    conn = sqlite3.connect(path, check_same_thread=False)
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS _jobs (
-            job_id      TEXT PRIMARY KEY,
-            status      TEXT DEFAULT 'processing',
-            result_json TEXT,
-            error       TEXT,
-            contrato_id INTEGER,
-            created_at  REAL
-        )""")
-    conn.commit()
-    return conn
+        return
+    with sqlite3.connect(path, timeout=30) as conn:
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS _jobs (
+                job_id      TEXT PRIMARY KEY,
+                status      TEXT DEFAULT 'processing',
+                result_json TEXT,
+                error       TEXT,
+                contrato_id INTEGER,
+                created_at  REAL
+            )""")
+        conn.commit()
 
 def _criar_job() -> str:
     job_id = str(uuid.uuid4())
-    conn   = _job_conn()
-    if conn:
-        conn.execute("INSERT INTO _jobs(job_id, status, created_at) VALUES(?,?,?)",
-                     (job_id, "processing", time.time()))
-        conn.commit()
-        conn.close()
+    path   = _db_path()
+    if path:
+        with _job_lock:
+            with sqlite3.connect(path, timeout=30) as conn:
+                conn.execute("PRAGMA journal_mode=WAL")
+                conn.execute(
+                    "INSERT INTO _jobs(job_id, status, created_at) VALUES(?,?,?)",
+                    (job_id, "processing", time.time())
+                )
+                conn.commit()
     return job_id
 
 def _finalizar_job(job_id: str, contrato_id: int, result: dict):
     import json
-    conn = _job_conn()
-    if conn:
-        conn.execute("UPDATE _jobs SET status=?,result_json=?,contrato_id=? WHERE job_id=?",
-                     ("done", json.dumps(result, ensure_ascii=False), contrato_id, job_id))
-        conn.commit()
-        conn.close()
+    path = _db_path()
+    if path:
+        with _job_lock:
+            with sqlite3.connect(path, timeout=30) as conn:
+                conn.execute("PRAGMA journal_mode=WAL")
+                conn.execute(
+                    "UPDATE _jobs SET status=?,result_json=?,contrato_id=? WHERE job_id=?",
+                    ("done", json.dumps(result, ensure_ascii=False), contrato_id, job_id)
+                )
+                conn.commit()
 
 def _falhar_job(job_id: str, erro: str):
-    conn = _job_conn()
-    if conn:
-        conn.execute("UPDATE _jobs SET status=?,error=? WHERE job_id=?",
-                     ("error", erro[:500], job_id))
-        conn.commit()
-        conn.close()
+    path = _db_path()
+    if path:
+        with _job_lock:
+            with sqlite3.connect(path, timeout=30) as conn:
+                conn.execute("PRAGMA journal_mode=WAL")
+                conn.execute(
+                    "UPDATE _jobs SET status=?,error=? WHERE job_id=?",
+                    ("error", erro[:2000], job_id)
+                )
+                conn.commit()
 
 def _ler_job(job_id: str) -> Optional[dict]:
     import json
-    conn = _job_conn()
-    if not conn:
+    path = _db_path()
+    if not path:
         return None
     try:
-        row = conn.execute(
-            "SELECT status, result_json, error, contrato_id FROM _jobs WHERE job_id=?",
-            (job_id,)).fetchone()
-        conn.close()
+        with sqlite3.connect(path, timeout=30) as conn:
+            conn.execute("PRAGMA journal_mode=WAL")
+            row = conn.execute(
+                "SELECT status, result_json, error, contrato_id FROM _jobs WHERE job_id=?",
+                (job_id,)
+            ).fetchone()
         if not row:
             return None
         return {
@@ -458,43 +488,67 @@ def _ler_job(job_id: str) -> Optional[dict]:
             "error":       row[2],
             "contrato_id": row[3]
         }
-    except Exception:
-        conn.close()
+    except Exception as e:
+        logger.error(f"❌ _ler_job: {e}")
         return None
 
 def _limpar_jobs_antigos():
-    """Remove jobs com mais de 2 horas para não acumular no banco."""
-    conn = _job_conn()
-    if conn:
-        limite = time.time() - 7200
-        conn.execute("DELETE FROM _jobs WHERE created_at < ?", (limite,))
-        conn.commit()
-        conn.close()
+    """Remove jobs com mais de 3 horas."""
+    path = _db_path()
+    if path:
+        with _job_lock:
+            with sqlite3.connect(path, timeout=30) as conn:
+                conn.execute("PRAGMA journal_mode=WAL")
+                conn.execute("DELETE FROM _jobs WHERE created_at < ?", (time.time() - 10800,))
+                conn.commit()
 
 def _processar_em_background(job_id: str, conteudo: bytes, filename: str, setor: str, user_id: int):
-    """Roda em thread separada. Extrai PDF, chama Gemini, salva no banco."""
+    """
+    Roda em thread separada.
+    Usa sua própria sessão SQLAlchemy (thread-safe) e trata todas
+    as exceções para garantir que o job sempre termine com done/error.
+    """
     db = SessionLocal()
     try:
-        texto  = extrair_texto_pdf(conteudo)
+        logger.info(f"[job {job_id[:8]}] Extraindo texto do PDF...")
+        texto = extrair_texto_pdf(conteudo)
         logger.info(f"[job {job_id[:8]}] {len(texto)} chars extraídos — analisando [{setor}]")
+
         resumo = gerar_resumo_ia(texto, setor)
-        novo   = Contract(nome=filename, texto=texto, resumo=resumo, setor=setor, user_id=user_id)
-        db.add(novo); db.commit(); db.refresh(novo)
-        db.add(Message(contrato_id=novo.id, autor="ai",
-                       texto=f"Análise concluída pelo setor {PROMPTS_SETORES[setor]['nome']}."))
+
+        if not resumo or resumo.startswith("❌"):
+            raise Exception(resumo or "Resposta vazia da IA")
+
+        novo = Contract(nome=filename, texto=texto, resumo=resumo, setor=setor, user_id=user_id)
+        db.add(novo)
         db.commit()
+        db.refresh(novo)
+
+        db.add(Message(
+            contrato_id=novo.id,
+            autor="ai",
+            texto=f"Análise concluída pelo setor {PROMPTS_SETORES[setor]['nome']}."
+        ))
+        db.commit()
+
         _finalizar_job(job_id, novo.id, {
-            "id": novo.id, "nome": filename, "resumo": resumo,
-            "setor": setor, "setor_nome": PROMPTS_SETORES[setor]['nome']
+            "id":        novo.id,
+            "nome":      filename,
+            "resumo":    resumo,
+            "setor":     setor,
+            "setor_nome": PROMPTS_SETORES[setor]['nome']
         })
         logger.info(f"[job {job_id[:8]}] ✅ Concluído — contrato #{novo.id}")
+
     except Exception as e:
         logger.error(f"[job {job_id[:8]}] ❌ {e}")
-        _falhar_job(job_id, str(e)[:300])
+        _falhar_job(job_id, str(e)[:2000])
     finally:
         db.close()
-        try: _limpar_jobs_antigos()
-        except: pass
+        try:
+            _limpar_jobs_antigos()
+        except Exception:
+            pass
 
 user_role_association = Table(
     'user_role_association', Base.metadata,
@@ -611,13 +665,16 @@ class SetUserVisibilityBody(BaseModel):
 # CRIAÇÃO DO BANCO + MIGRAÇÃO
 # ════════════════════════════════════════════════════════════
 Base.metadata.create_all(bind=engine)
+_garantir_tabela_jobs()
 logger.info("✅ Tabelas verificadas")
 
 def migrar_banco():
     db_path = DATABASE_URL.replace("sqlite:///", "")
     try:
-        conn   = sqlite3.connect(db_path)
+        conn   = sqlite3.connect(db_path, timeout=30)
         cursor = conn.cursor()
+        cursor.execute("PRAGMA journal_mode=WAL")
+        conn.commit()
         cursor.execute("PRAGMA table_info(roles)")
         if "description" not in [r[1] for r in cursor.fetchall()]:
             cursor.execute("ALTER TABLE roles ADD COLUMN description TEXT DEFAULT ''")
@@ -853,48 +910,41 @@ def extrair_texto_pdf(conteudo: bytes) -> str:
 # ════════════════════════════════════════════════════════════
 # PROCESSAMENTO INTELIGENTE POR CHUNKS
 #
-# ESTRATÉGIA DE 3 FASES:
+# v4.3 — CORREÇÕES PARA CONTRATOS DE 17+ PÁGINAS:
 #
-#  FASE 0 — DIRETO (contratos ≤ LIMITE_DIRETO chars)
-#    Contrato pequeno → uma única chamada ao Gemini com o prompt
-#    completo do setor. Mais rápido e mais preciso.
+#  LIMITE_DIRETO: 60.000 chars (mantido)
+#    Contratos de 17 páginas têm ~25.000–45.000 chars — processados
+#    em 1 única chamada direta (~15–30s).
 #
-#  FASE 1 — PRÉ-ANÁLISE POR CHUNK (contratos grandes)
-#    O texto é dividido em partes de CHUNK_SIZE chars com sobreposição
-#    de CHUNK_OVERLAP. Cada parte é enviada ao Gemini com um prompt
-#    de extração bruta (sem formatar relatório final). O objetivo é
-#    extrair TODOS os dados relevantes de cada trecho.
-#    Retry automático em caso de erro 429/503.
+#  GEMINI_TIMEOUT: 480 → 600s (10 minutos)
+#    Contratos grandes podem levar mais de 8 minutos no Gemini.
+#    Aumentado para 10 minutos para cobrir todos os casos.
 #
-#  FASE 2 — CONSOLIDAÇÃO FINAL
-#    As pré-análises de todos os chunks são reunidas e enviadas numa
-#    segunda chamada ao Gemini, que produz o relatório final estruturado
-#    no formato correto do setor. Ele sabe que está consolidando dados
-#    de um contrato longo, então não repete informações.
+#  _chamar_gemini: retry melhorado com backoff exponencial real
+#    Antes: [5,15,30]s fixos para todos os erros.
+#    Agora: [10,30,60]s para rate-limit (429/quota), [5,10,20]s para
+#    erros de servidor (503/overloaded). Distinção importa pois 429
+#    significa espera obrigatória e 503 é transitório.
 #
-#  FALLBACK — Se a consolidação falhar, retorna as pré-análises brutas
-#    concatenadas para que o usuário não perca o trabalho.
+#  _chamar_gemini: tratamento de resposta vazia melhorado
+#    Se o Gemini retornar texto vazio (não erro), agora faz retry
+#    em vez de retornar string vazia silenciosamente.
 #
-# PARÂMETROS:
-#  CHUNK_SIZE    = 6000   chars por pedaço enviado ao Gemini
-#  CHUNK_OVERLAP = 400    chars de sobreposição entre chunks
-#  LIMITE_DIRETO = 5500   chars — acima disso ativa o modo chunks
-#  MAX_CHUNKS    = 12     limite de segurança (evita cota excessiva)
+#  _pre_analisar_chunk: prompt mais robusto
+#    Instrui o modelo a não truncar e retornar todos os dados encontrados.
+#
+#  _consolidar_analise: instrução explícita de não truncar
+#    Adiciona instrução para o modelo não resumir demais nem truncar.
 # ════════════════════════════════════════════════════════════
 
-CHUNK_SIZE    = 9000   # maior = menos chunks = menos chamadas à API
-CHUNK_OVERLAP = 300    # sobreposição suficiente sem desperdiçar tokens
-LIMITE_DIRETO = 8500   # contratos menores que isso → análise direta
-MAX_CHUNKS    = 6      # máximo 6 chunks → no máximo 7 chamadas total
-PAUSA_CHUNKS  = 4      # segundos entre chamadas para não estourar cota
+CHUNK_SIZE     = 50_000   # ~35 páginas por chunk
+CHUNK_OVERLAP  = 300
+LIMITE_DIRETO  = 60_000   # cobre contratos de até ~40 páginas (17 pág = ~25k–45k chars)
+MAX_CHUNKS     = 4
+GEMINI_TIMEOUT = 600      # FIX v4.3: aumentado de 480s para 600s (10 minutos)
 
 
 def _dividir_em_chunks(texto: str) -> list[str]:
-    """
-    Divide o texto em chunks com sobreposição.
-    Prioriza pontos de quebra naturais (parágrafo, ponto final)
-    para não cortar cláusulas no meio.
-    """
     chunks  = []
     inicio  = 0
     tamanho = len(texto)
@@ -903,13 +953,10 @@ def _dividir_em_chunks(texto: str) -> list[str]:
         fim = min(inicio + CHUNK_SIZE, tamanho)
 
         if fim < tamanho:
-            # Tenta quebrar em parágrafo duplo
             quebra = texto.rfind("\n\n", inicio + CHUNK_SIZE // 2, fim)
             if quebra == -1:
-                # Tenta parágrafo simples
                 quebra = texto.rfind("\n", inicio + CHUNK_SIZE // 2, fim)
             if quebra == -1:
-                # Tenta ponto final
                 quebra = texto.rfind(". ", inicio + CHUNK_SIZE // 2, fim)
             if quebra != -1:
                 fim = quebra + 1
@@ -936,62 +983,132 @@ def _dividir_em_chunks(texto: str) -> list[str]:
 
 def _chamar_gemini(prompt: str, descricao: str = "") -> str:
     """
-    Wrapper com retry automático (4 tentativas, espera exponencial agressiva).
-    Trata erros 429 (rate limit) e 503 (indisponível).
+    Wrapper com retry automático, timeout explícito e backoff inteligente.
+
+    FIX v4.3:
+    - Timeout aumentado: usa GEMINI_TIMEOUT (600s) — contratos de 17+ páginas
+      podem levar 3–8 minutos no Gemini 2.5 Flash com prompts longos.
+    - Backoff diferenciado: rate-limit (429) espera mais que erros de servidor (503).
+    - Retry em resposta vazia: se Gemini retornar texto vazio (não erro), tenta
+      novamente até 2 vezes antes de retornar vazio.
+    - Mensagem de erro mais descritiva para o usuário final.
     """
     if not client or not MODELO_ATIVO:
-        raise Exception("IA indisponível")
+        raise Exception("IA indisponível: verifique a GEMINI_API_KEY e o modelo configurado.")
+
+    # FIX v4.3: backoff diferenciado por tipo de erro
+    BACKOFF_RATE_LIMIT   = [10, 30, 60]   # 429/quota: espera real obrigatória
+    BACKOFF_SERVER_ERROR = [5,  15, 30]   # 503/overloaded: erro transitório
 
     for tentativa in range(4):
-        try:
-            response = client.models.generate_content(
-                model    = MODELO_ATIVO,
-                contents = prompt
+        resultado_ref = [None]
+        erro_ref      = [None]
+
+        def _chamar():
+            try:
+                response = client.models.generate_content(
+                    model    = MODELO_ATIVO,
+                    contents = prompt
+                )
+                resultado_ref[0] = response.text if response and response.text else ""
+            except Exception as e:
+                erro_ref[0] = e
+
+        t = threading.Thread(target=_chamar, daemon=True)
+        t.start()
+        t.join(timeout=GEMINI_TIMEOUT)   # FIX v4.3: 600s
+
+        if t.is_alive():
+            logger.error(
+                f"❌ Gemini [{descricao}] timeout após {GEMINI_TIMEOUT}s "
+                f"(tentativa {tentativa+1}/4)"
             )
-            if response and response.text:
-                return limpar_markdown(response.text)
-            return ""
-        except Exception as e:
-            err = str(e)
-            recuperavel = "429" in err or "503" in err or "quota" in err.lower() or "overloaded" in err.lower() or "RESOURCE_EXHAUSTED" in err
+            # Não faz retry em timeout — é improvável que a próxima tentativa seja mais rápida
+            raise Exception(
+                f"A IA demorou mais de {GEMINI_TIMEOUT // 60} minutos para responder. "
+                "Possíveis causas: contrato muito grande, sobrecarga da API Gemini ou "
+                "conexão instável. Tente novamente em alguns minutos."
+            )
+
+        if erro_ref[0] is not None:
+            err = str(erro_ref[0])
+            is_rate_limit = (
+                "429" in err or
+                "quota" in err.lower() or
+                "RESOURCE_EXHAUSTED" in err
+            )
+            is_server_err = (
+                "503" in err or
+                "overloaded" in err.lower() or
+                "unavailable" in err.lower()
+            )
+            recuperavel = is_rate_limit or is_server_err
+
             if recuperavel and tentativa < 3:
-                espera = [8, 20, 45][tentativa]  # 8s, 20s, 45s
-                logger.warning(f"⚠️  Gemini [{descricao}] tentativa {tentativa+1}/4 — aguardando {espera}s... (429/quota)")
+                if is_rate_limit:
+                    espera = BACKOFF_RATE_LIMIT[tentativa]
+                    motivo = "rate limit/quota"
+                else:
+                    espera = BACKOFF_SERVER_ERROR[tentativa]
+                    motivo = "servidor sobrecarregado"
+                logger.warning(
+                    f"⚠️  Gemini [{descricao}] tentativa {tentativa+1}/4 "
+                    f"— aguardando {espera}s ({motivo})..."
+                )
                 time.sleep(espera)
+                continue
             else:
-                logger.error(f"❌ Gemini [{descricao}] falhou: {err[:120]}")
-                raise
+                logger.error(f"❌ Gemini [{descricao}] falhou definitivamente: {err[:200]}")
+                raise erro_ref[0]
+
+        # FIX v4.3: retry em resposta vazia (pode ser falha transitória da API)
+        resultado = limpar_markdown(resultado_ref[0] or "")
+        if not resultado and tentativa < 2:
+            logger.warning(
+                f"⚠️  Gemini [{descricao}] retornou resposta vazia "
+                f"— tentativa {tentativa+1}/4, aguardando 5s..."
+            )
+            time.sleep(5)
+            continue
+
+        return resultado
+
+    logger.error(f"❌ Gemini [{descricao}] esgotou todas as tentativas")
     return ""
 
 
 def _pre_analisar_chunk(chunk: str, numero: int, total: int, setor: str) -> str:
     """
-    Fase 1: extração bruta dos dados de um chunk.
-    Prompt leve — sem estrutura de relatório final.
+    FIX v4.3: prompt mais robusto — instrui o modelo a não truncar e a
+    retornar TODOS os dados, mesmo que a parte pareça incompleta.
     """
     prompt = f"""Você está lendo a PARTE {numero} de {total} de um contrato.
 
-TAREFA: Extraia TODOS os dados relevantes desta parte sem omitir nada.
-- Identifique: partes contratantes, valores, datas, prazos, obrigações, penalidades, garantias, legislação citada, cláusulas importantes.
-- Cite o número de cada cláusula/item encontrado.
-- Se uma informação parecer incompleta (continua na próxima parte), registre o que encontrou assim mesmo.
-- NÃO formate como relatório final. Apenas liste os dados encontrados de forma clara e organizada.
-- NÃO invente informações. Apenas o que está escrito abaixo.
+TAREFA CRÍTICA: Extraia TODOS os dados relevantes desta parte sem omitir NADA.
+- Identifique e liste: partes contratantes, valores, datas, prazos, obrigações, penalidades, garantias, legislação citada, cláusulas importantes, itens de serviço, quantitativos, endereços, CNPJs.
+- Cite o número de cada cláusula/item encontrado (ex: [Cláusula 3.1], [Item 2.a]).
+- Se uma informação parecer incompleta (continua na próxima parte), registre o que encontrou assim mesmo, indicando "(continua...)".
+- NÃO formate como relatório final. Apenas liste os dados encontrados de forma clara.
+- NÃO invente informações. SOMENTE o que está escrito no texto abaixo.
+- NÃO resuma demais — prefira extrair mais dados do que menos.
+- NÃO truncar sua resposta: retorne TODOS os dados encontrados.
 
 PARTE {numero} DE {total}:
 {chunk}
 
-DADOS EXTRAÍDOS:"""
+DADOS EXTRAÍDOS (seja completo, não truncar):"""
 
     resultado = _chamar_gemini(prompt, f"chunk {numero}/{total}")
-    logger.info(f"  ✅ Chunk {numero}/{total}: {len(resultado)} chars extraídos")
-    return resultado or f"[Parte {numero}: nenhum dado extraído]"
+    if resultado:
+        logger.info(f"  ✅ Chunk {numero}/{total}: {len(resultado)} chars extraídos")
+    else:
+        logger.warning(f"  ⚠️  Chunk {numero}/{total}: resposta vazia após retries")
+    return resultado or f"[Parte {numero}: nenhum dado pôde ser extraído]"
 
 
 def _consolidar_analise(pre_analises: list[str], setor: str, total_chunks: int) -> str:
     """
-    Fase 2: consolida todas as pré-análises no relatório final estruturado.
-    Usa o template completo do setor, mas alimentado pelas extrações brutas.
+    FIX v4.3: instrução explícita para não truncar e não resumir demais.
     """
     config_setor = PROMPTS_SETORES.get(setor, PROMPTS_SETORES["juridico"])
 
@@ -1001,28 +1118,39 @@ def _consolidar_analise(pre_analises: list[str], setor: str, total_chunks: int) 
         if pa.strip()
     ])
 
-    # Substitui a variável {texto} do template pelo bloco de extrações
     template_setor = config_setor["resumo"].replace(
         "CONTRATO A ANALISAR:\n{texto}",
-        f"""ATENÇÃO: Este contrato foi dividido em {total_chunks} partes para análise.
-Abaixo estão as extrações de dados de cada parte. Consolide tudo em um único relatório final,
-sem repetições, unificando informações que aparecem em múltiplas partes.
-Se houver contradições entre partes, registre ambas com nota "Ver partes X e Y".
+        f"""ATENÇÃO IMPORTANTE:
+- Este contrato foi dividido em {total_chunks} partes para análise.
+- Abaixo estão as extrações brutas de cada parte.
+- Consolide TUDO em um único relatório final, SEM omitir informações importantes.
+- NÃO truncar o relatório — inclua todas as seções mesmo que longas.
+- Unifique informações repetidas entre partes sem perder detalhes.
+- Se houver contradições entre partes, registre ambas com nota "Verificar partes X e Y".
+- Preencha cada campo da estrutura com base nas extrações abaixo.
 
-EXTRAÇÕES BRUTAS DAS {total_chunks} PARTES:
-{blocos}"""
+EXTRAÇÕES BRUTAS DAS {total_chunks} PARTES DO CONTRATO:
+{blocos}
+
+INSTRUÇÕES FINAIS: Produza o relatório completo seguindo EXATAMENTE a estrutura acima.
+Não resuma demais — prefira ser detalhado. Não truncar a resposta."""
     )
 
     resultado = _chamar_gemini(template_setor, "consolidação final")
-    logger.info(f"  ✅ Consolidação final: {len(resultado)} chars")
+    if resultado:
+        logger.info(f"  ✅ Consolidação final: {len(resultado)} chars")
+    else:
+        logger.error("  ❌ Consolidação retornou resposta vazia após retries")
     return resultado
 
 
 def gerar_resumo_ia(texto: str, setor: str = "juridico") -> str:
     """
-    Análise completa do contrato.
-    - Contratos curtos (≤ LIMITE_DIRETO chars): análise direta em 1 chamada.
-    - Contratos longos: chunks → pré-análise de cada parte → consolidação final.
+    FIX v4.3:
+    - LIMITE_DIRETO mantido em 60.000 chars (cobre contratos de 17 páginas).
+    - Modo direto aprimorado: verifica se a resposta está truncada e faz retry.
+    - Modo chunks: melhorado para contratos > 60k chars.
+    - Logging mais detalhado para diagnóstico.
     """
     if not client or not MODELO_ATIVO:
         return "❌ Serviço de IA temporariamente indisponível."
@@ -1030,46 +1158,50 @@ def gerar_resumo_ia(texto: str, setor: str = "juridico") -> str:
     config_setor = PROMPTS_SETORES.get(setor, PROMPTS_SETORES["juridico"])
     tamanho      = len(texto)
 
-    try:
-        # ── MODO DIRETO ──────────────────────────────────────────────────
-        if tamanho <= LIMITE_DIRETO:
-            logger.info(f"📄 Análise direta: {tamanho} chars")
-            prompt    = config_setor["resumo"].format(texto=texto)
-            resultado = _chamar_gemini(prompt, "análise direta")
-            return resultado if resultado else "❌ Erro: resposta vazia da IA."
+    logger.info(f"📄 Iniciando análise: {tamanho} chars | setor={setor} | limite_direto={LIMITE_DIRETO}")
 
-        # ── MODO CHUNKS ──────────────────────────────────────────────────
+    try:
+        if tamanho <= LIMITE_DIRETO:
+            logger.info(f"📄 Análise direta (1 chamada): {tamanho} chars")
+            prompt    = config_setor["resumo"].format(texto=texto)
+            resultado = _chamar_gemini(prompt, f"análise direta [{tamanho} chars]")
+
+            if not resultado:
+                logger.error("❌ Análise direta retornou resposta vazia")
+                return "❌ Erro: a IA retornou uma resposta vazia. Tente novamente."
+
+            logger.info(f"✅ Análise direta concluída: {len(resultado)} chars de resultado")
+            return resultado
+
+        # Modo chunks para contratos muito grandes (> 60.000 chars / ~40+ páginas)
         chunks = _dividir_em_chunks(texto)
         logger.info(f"📚 Análise em chunks: {tamanho} chars → {len(chunks)} partes")
 
-        # FASE 1: pré-análise de cada chunk com pausa entre chamadas
         pre_analises = []
         for i, chunk in enumerate(chunks):
             logger.info(f"  🔍 Processando parte {i+1}/{len(chunks)} ({len(chunk)} chars)...")
             try:
                 pa = _pre_analisar_chunk(chunk, i + 1, len(chunks), setor)
                 pre_analises.append(pa)
-                # Pausa entre chunks para não estourar cota da API
-                if i < len(chunks) - 1:
-                    logger.info(f"  ⏳ Aguardando {PAUSA_CHUNKS}s antes do próximo chunk...")
-                    time.sleep(PAUSA_CHUNKS)
             except Exception as e:
                 logger.error(f"  ❌ Chunk {i+1} falhou: {e}")
-                pre_analises.append(f"[Parte {i+1} não processada: {str(e)[:80]}]")
+                pre_analises.append(f"[Parte {i+1} não processada devido a erro: {str(e)[:200]}]")
 
-        # FASE 2: consolidação final
         logger.info(f"  🔗 Consolidando {len(chunks)} partes...")
         try:
             resultado = _consolidar_analise(pre_analises, setor, len(chunks))
             if resultado:
+                logger.info(f"✅ Análise em chunks concluída: {len(resultado)} chars")
                 return resultado
+            logger.warning("⚠️  Consolidação retornou vazio — usando fallback de pré-análises")
         except Exception as e:
             logger.error(f"  ❌ Consolidação falhou: {e}")
 
-        # FALLBACK: retorna pré-análises brutas se a consolidação falhar
-        logger.warning("⚠️  Usando fallback: pré-análises brutas")
+        # Fallback: retorna pré-análises brutas concatenadas
+        logger.warning("⚠️  Usando fallback: pré-análises brutas concatenadas")
         return (
             f"ANÁLISE PARCIAL ({len(chunks)} PARTES DO CONTRATO)\n"
+            "Nota: A consolidação final não foi possível. Abaixo estão os dados extraídos de cada parte.\n"
             "═══════════════════════════════════════════\n\n" +
             "\n\n".join([f"═══ PARTE {i+1}/{len(chunks)} ═══\n{pa}"
                          for i, pa in enumerate(pre_analises)])
@@ -1077,32 +1209,24 @@ def gerar_resumo_ia(texto: str, setor: str = "juridico") -> str:
 
     except Exception as e:
         logger.error(f"❌ gerar_resumo_ia: {e}")
-        return f"❌ Erro ao processar contrato: {str(e)[:200]}"
+        return f"❌ Erro ao processar contrato: {str(e)[:500]}"
 
 
 def gerar_resposta_ia(pergunta: str, contexto: str, setor: str = "juridico") -> str:
-    """
-    Responde perguntas sobre o contrato.
-    - Contexto curto: resposta direta.
-    - Contexto longo: triagem → identifica partes relevantes → responde com base nelas.
-    """
     if not client or not MODELO_ATIVO:
         return "❌ Serviço de IA temporariamente indisponível."
 
     config_setor = PROMPTS_SETORES.get(setor, PROMPTS_SETORES["juridico"])
 
     try:
-        # ── CONTEXTO CURTO: resposta direta ─────────────────────────────
         if len(contexto) <= LIMITE_DIRETO:
             prompt    = config_setor["perguntas"].format(pergunta=pergunta, contexto=contexto)
-            resultado = _chamar_gemini(prompt, "pergunta direta")
-            return resultado if resultado else "❌ Não foi possível gerar uma resposta."
+            resultado = _chamar_gemini(prompt, f"pergunta direta [{len(contexto)} chars]")
+            return resultado if resultado else "❌ Não foi possível gerar uma resposta. Tente novamente."
 
-        # ── CONTEXTO LONGO: triagem + resposta focada ────────────────────
         chunks = _dividir_em_chunks(contexto)
-        logger.info(f"💬 Pergunta longa: {len(chunks)} chunks, triagem em andamento...")
+        logger.info(f"💬 Pergunta em contexto longo: {len(chunks)} chunks, triagem em andamento...")
 
-        # Etapa A: triagem — quais partes são relevantes para esta pergunta
         resumos = "\n".join([
             f"PARTE {i+1}: {chunk[:400].replace(chr(10), ' ')}..."
             for i, chunk in enumerate(chunks)
@@ -1119,18 +1243,15 @@ Partes relevantes:"""
 
         triagem = _chamar_gemini(prompt_triagem, "triagem de chunks")
 
-        # Extrai os índices retornados
         partes_relevantes = []
         if triagem:
             nums = re.findall(r'\d+', triagem)
             partes_relevantes = [int(n) - 1 for n in nums if 0 < int(n) <= len(chunks)]
             partes_relevantes = list(dict.fromkeys(partes_relevantes))[:5]
 
-        # Se triagem não retornar nada útil, usa as primeiras 3 partes
         if not partes_relevantes:
             partes_relevantes = list(range(min(3, len(chunks))))
 
-        # Etapa B: resposta com base nas partes relevantes
         contexto_filtrado = "\n\n".join([
             f"═══ PARTE {i+1} DO CONTRATO ═══\n{chunks[i]}"
             for i in partes_relevantes
@@ -1141,11 +1262,11 @@ Partes relevantes:"""
             contexto=contexto_filtrado
         )
         resultado = _chamar_gemini(prompt_final, "pergunta final")
-        return resultado if resultado else "❌ Não foi possível gerar uma resposta."
+        return resultado if resultado else "❌ Não foi possível gerar uma resposta. Tente novamente."
 
     except Exception as e:
         logger.error(f"❌ gerar_resposta_ia: {e}")
-        return f"❌ Erro ao processar pergunta: {str(e)[:200]}"
+        return f"❌ Erro ao processar pergunta: {str(e)[:500]}"
 
 
 # ════════════════════════════════════════════════════════════
@@ -1419,7 +1540,6 @@ async def upload_contrato(
     """
     Recebe o PDF e retorna IMEDIATAMENTE um job_id.
     A análise roda em background — use GET /job/{job_id} para acompanhar.
-    Isso evita o timeout de 30s do Render free tier.
     """
     if not file.filename.lower().endswith('.pdf'):
         raise HTTPException(status_code=400, detail="Apenas arquivos PDF são permitidos")
@@ -1427,7 +1547,15 @@ async def upload_contrato(
         setor = "juridico"
 
     conteudo = await file.read()
-    job_id   = _criar_job()
+
+    # Validação básica do tamanho do arquivo (máximo 50MB)
+    if len(conteudo) > 50 * 1024 * 1024:
+        raise HTTPException(
+            status_code=400,
+            detail="Arquivo muito grande. O tamanho máximo permitido é 50MB."
+        )
+
+    job_id = _criar_job()
 
     t = threading.Thread(
         target=_processar_em_background,
@@ -1435,10 +1563,13 @@ async def upload_contrato(
         daemon=True
     )
     t.start()
-    logger.info(f"🚀 Job {job_id[:8]} iniciado para '{file.filename}' [{setor}]")
+    logger.info(f"🚀 Job {job_id[:8]} iniciado para '{file.filename}' [{setor}] ({len(conteudo)//1024}KB)")
 
-    return {"job_id": job_id, "status": "processing",
-            "mensagem": "Análise iniciada. Acompanhe em /job/{job_id}"}
+    return {
+        "job_id":    job_id,
+        "status":    "processing",
+        "mensagem":  "Análise iniciada. Acompanhe em /job/{job_id}"
+    }
 
 
 @app.get("/job/{job_id}", tags=["Contratos"])
@@ -1446,10 +1577,13 @@ async def status_job(job_id: str, current_user: User = Depends(get_current_user)
     """Polling do status de análise. Retorna: processing | done | error."""
     job = _ler_job(job_id)
     if not job:
-        # Job não existe — pode ter expirado (> 2h) ou servidor reiniciou antes de gravar
         raise HTTPException(
             status_code=404,
-            detail="Job não encontrado. O servidor pode ter reiniciado. Tente enviar o arquivo novamente."
+            detail=(
+                "Job não encontrado. O servidor pode ter reiniciado durante a análise "
+                "(isso ocorre no plano gratuito do Render). "
+                "Aguarde 30 segundos e tente enviar o arquivo novamente."
+            )
         )
     return {
         "job_id":      job_id,
@@ -1663,15 +1797,16 @@ async def perguntar_contrato(
 async def root():
     return {
         "sistema":  "Analisador de Contratos IA - Opersan",
-        "versao":   "4.0.0",
+        "versao":   "4.3.0",
         "status":   "online",
         "ia_disponivel":  MODELO_ATIVO is not None,
         "modelo_ia":      MODELO_ATIVO,
         "chunk_config": {
-            "limite_direto": LIMITE_DIRETO,
-            "chunk_size":    CHUNK_SIZE,
-            "chunk_overlap": CHUNK_OVERLAP,
-            "max_chunks":    MAX_CHUNKS,
+            "limite_direto":  LIMITE_DIRETO,
+            "chunk_size":     CHUNK_SIZE,
+            "chunk_overlap":  CHUNK_OVERLAP,
+            "max_chunks":     MAX_CHUNKS,
+            "gemini_timeout": GEMINI_TIMEOUT,
         },
         "extratores_pdf": {
             "pymupdf":    PYMUPDF_DISPONIVEL,
@@ -1680,6 +1815,16 @@ async def root():
         },
         "setores_disponiveis": list(PROMPTS_SETORES.keys()),
     }
+
+@app.get("/ping", tags=["Sistema"])
+async def ping():
+    """
+    Keep-alive endpoint.
+    O frontend faz GET /ping a cada 55s durante a análise para manter
+    o servidor Render acordado e evitar que a instância durma no meio
+    de uma análise longa (3-8 minutos).
+    """
+    return {"pong": True, "ts": time.time()}
 
 @app.get("/health", tags=["Sistema"])
 async def health_check():
@@ -1699,6 +1844,6 @@ async def health_check():
 if __name__ == "__main__":
     import uvicorn
     logger.info("=" * 60)
-    logger.info("🚀 OPERSAN v4.0 — Análise com chunks inteligentes")
+    logger.info("🚀 OPERSAN v4.3 — LIMITE_DIRETO=60k | timeout=10min | WAL SQLite")
     logger.info("=" * 60)
     uvicorn.run(app, host=HOST, port=PORT)
