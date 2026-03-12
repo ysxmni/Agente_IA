@@ -771,10 +771,11 @@ def extrair_texto_pdf(conteudo: bytes) -> str:
 #  MAX_CHUNKS    = 12     limite de segurança (evita cota excessiva)
 # ════════════════════════════════════════════════════════════
 
-CHUNK_SIZE    = 6000
-CHUNK_OVERLAP = 400
-LIMITE_DIRETO = 5500
-MAX_CHUNKS    = 12
+CHUNK_SIZE    = 9000   # maior = menos chunks = menos chamadas à API
+CHUNK_OVERLAP = 300    # sobreposição suficiente sem desperdiçar tokens
+LIMITE_DIRETO = 8500   # contratos menores que isso → análise direta
+MAX_CHUNKS    = 6      # máximo 6 chunks → no máximo 7 chamadas total
+PAUSA_CHUNKS  = 4      # segundos entre chamadas para não estourar cota
 
 
 def _dividir_em_chunks(texto: str) -> list[str]:
@@ -824,13 +825,13 @@ def _dividir_em_chunks(texto: str) -> list[str]:
 
 def _chamar_gemini(prompt: str, descricao: str = "") -> str:
     """
-    Wrapper com retry automático (3 tentativas, espera exponencial).
+    Wrapper com retry automático (4 tentativas, espera exponencial agressiva).
     Trata erros 429 (rate limit) e 503 (indisponível).
     """
     if not client or not MODELO_ATIVO:
         raise Exception("IA indisponível")
 
-    for tentativa in range(3):
+    for tentativa in range(4):
         try:
             response = client.models.generate_content(
                 model    = MODELO_ATIVO,
@@ -841,10 +842,10 @@ def _chamar_gemini(prompt: str, descricao: str = "") -> str:
             return ""
         except Exception as e:
             err = str(e)
-            recuperavel = "429" in err or "503" in err or "quota" in err.lower() or "overloaded" in err.lower()
-            if recuperavel and tentativa < 2:
-                espera = 2 ** (tentativa + 1)  # 2s, 4s
-                logger.warning(f"⚠️  Gemini [{descricao}] tentativa {tentativa+1}/3 — aguardando {espera}s... ({err[:60]})")
+            recuperavel = "429" in err or "503" in err or "quota" in err.lower() or "overloaded" in err.lower() or "RESOURCE_EXHAUSTED" in err
+            if recuperavel and tentativa < 3:
+                espera = [8, 20, 45][tentativa]  # 8s, 20s, 45s
+                logger.warning(f"⚠️  Gemini [{descricao}] tentativa {tentativa+1}/4 — aguardando {espera}s... (429/quota)")
                 time.sleep(espera)
             else:
                 logger.error(f"❌ Gemini [{descricao}] falhou: {err[:120]}")
@@ -930,13 +931,17 @@ def gerar_resumo_ia(texto: str, setor: str = "juridico") -> str:
         chunks = _dividir_em_chunks(texto)
         logger.info(f"📚 Análise em chunks: {tamanho} chars → {len(chunks)} partes")
 
-        # FASE 1: pré-análise de cada chunk
+        # FASE 1: pré-análise de cada chunk com pausa entre chamadas
         pre_analises = []
         for i, chunk in enumerate(chunks):
             logger.info(f"  🔍 Processando parte {i+1}/{len(chunks)} ({len(chunk)} chars)...")
             try:
                 pa = _pre_analisar_chunk(chunk, i + 1, len(chunks), setor)
                 pre_analises.append(pa)
+                # Pausa entre chunks para não estourar cota da API
+                if i < len(chunks) - 1:
+                    logger.info(f"  ⏳ Aguardando {PAUSA_CHUNKS}s antes do próximo chunk...")
+                    time.sleep(PAUSA_CHUNKS)
             except Exception as e:
                 logger.error(f"  ❌ Chunk {i+1} falhou: {e}")
                 pre_analises.append(f"[Parte {i+1} não processada: {str(e)[:80]}]")
