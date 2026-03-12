@@ -356,7 +356,7 @@ function configurarEventos() {
     });
 }
 
-// ─── UPLOAD COM PROGRESSO ─────────────────────────────────────────────────────
+// ─── UPLOAD COM POLLING (resolve timeout do Render free tier) ────────────────
 
 const ETAPAS_UPLOAD = [
     { texto: "📄 Lendo o PDF...",              duracao: 800  },
@@ -383,22 +383,26 @@ async function enviarContrato() {
     fd.append("setor", setorSelecionado);
 
     try {
-        const res = await fetch(`${API}/upload`, {
+        // ── PASSO 1: enviar arquivo e receber job_id imediatamente ────────────
+        const resUpload = await fetch(`${API}/upload`, {
             method:  "POST",
             headers: { Authorization: `Bearer ${usuario.token}` },
             body:    fd,
-            // ── TIMEOUT AUMENTADO PARA 5 MINUTOS ──────────────────────────
-            // O Gemini pode demorar em contratos longos ou quando o servidor
-            // está com pouca CPU (plano gratuito do Render).
-            signal:  AbortSignal.timeout(300000)
+            signal:  AbortSignal.timeout(30000)   // só para o upload do arquivo
         });
 
-        if (!res.ok) {
-            const e = await res.json().catch(() => ({}));
-            throw new Error(e.detail || `Erro ${res.status}`);
+        if (!resUpload.ok) {
+            const e = await resUpload.json().catch(() => ({}));
+            throw new Error(e.detail || `Erro ${resUpload.status}`);
         }
 
-        const data = await res.json();
+        const jobData = await resUpload.json();
+        const jobId   = jobData.job_id;
+
+        if (!jobId) throw new Error("Servidor não retornou job_id");
+
+        // ── PASSO 2: polling até a análise concluir ────────────────────────────
+        const data = await _aguardarJob(jobId);
 
         await _avancarEtapa(3);
         _finalizarProgresso("✅ ANÁLISE CONCLUÍDA!");
@@ -430,6 +434,62 @@ async function enviarContrato() {
         _finalizarProgresso(`❌ Erro: ${err.message}`, "error");
         mostrarAviso("Erro no processamento: " + err.message, "error");
     }
+}
+
+/**
+ * Polling: consulta /job/{jobId} a cada 4s por até 10 minutos.
+ * Atualiza a barra de progresso com pontos animados enquanto espera.
+ */
+async function _aguardarJob(jobId) {
+    const MAX_TENTATIVAS = 150;   // 150 × 4s = 10 minutos
+    const INTERVALO_MS   = 4000;
+
+    for (let i = 0; i < MAX_TENTATIVAS; i++) {
+        await new Promise(r => setTimeout(r, INTERVALO_MS));
+
+        // Anima texto enquanto espera
+        const dots  = ".".repeat((i % 3) + 1);
+        const texto = document.querySelector(".progress-texto");
+        if (texto) texto.textContent = `🤖 IA analisando o contrato${dots}`;
+
+        // Barra cresce gradualmente até 85%
+        const pct  = Math.min(30 + Math.floor((i / MAX_TENTATIVAS) * 55), 85);
+        const barra = document.getElementById("progressBarFill");
+        if (barra) barra.style.width = pct + "%";
+
+        try {
+            const res = await fetch(`${API}/job/${jobId}`, {
+                headers: { Authorization: `Bearer ${usuario.token}` },
+                signal:  AbortSignal.timeout(10000)
+            });
+
+            if (!res.ok) {
+                if (res.status === 404) throw new Error("Job não encontrado no servidor");
+                continue;
+            }
+
+            const job = await res.json();
+
+            if (job.status === "done") {
+                return job.result;
+            }
+
+            if (job.status === "error") {
+                throw new Error(job.error || "Erro interno na análise");
+            }
+
+            // status === "processing" → continua aguardando
+
+        } catch (err) {
+            if (err.message.includes("Job não encontrado") || err.message.includes("Erro interno")) {
+                throw err;
+            }
+            // Erro de rede temporário → tenta de novo
+            console.warn(`⚠️ Polling tentativa ${i+1}:`, err.message);
+        }
+    }
+
+    throw new Error("Tempo esgotado. A análise está demorando mais que o esperado. Tente um contrato menor ou aguarde e recarregue a página.");
 }
 
 let _etapaAtual = 0;

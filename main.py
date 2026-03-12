@@ -1,7 +1,9 @@
 import io
 import re
 import time
+import uuid
 import sqlite3
+import threading
 from typing import Optional, List
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
@@ -384,6 +386,55 @@ if DATABASE_URL.startswith("sqlite"):
 else:
     engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+# ════════════════════════════════════════════════════════════
+# FILA DE JOBS ASSÍNCRONOS
+# Resolve o timeout de 30s do Render free tier:
+# O upload retorna imediatamente um job_id.
+# A análise roda em background thread.
+# O frontend faz polling em GET /job/{job_id} até concluir.
+# ════════════════════════════════════════════════════════════
+_jobs: dict = {}
+_jobs_lock  = threading.Lock()
+
+def _criar_job() -> str:
+    job_id = str(uuid.uuid4())
+    with _jobs_lock:
+        _jobs[job_id] = {"status": "processing", "result": None, "error": None, "contrato_id": None}
+    return job_id
+
+def _finalizar_job(job_id: str, contrato_id: int, result: dict):
+    with _jobs_lock:
+        if job_id in _jobs:
+            _jobs[job_id].update({"status": "done", "result": result, "contrato_id": contrato_id})
+
+def _falhar_job(job_id: str, erro: str):
+    with _jobs_lock:
+        if job_id in _jobs:
+            _jobs[job_id].update({"status": "error", "error": erro})
+
+def _processar_em_background(job_id: str, conteudo: bytes, filename: str, setor: str, user_id: int):
+    """Roda em thread separada. Extrai PDF, chama Gemini, salva no banco."""
+    db = SessionLocal()
+    try:
+        texto  = extrair_texto_pdf(conteudo)
+        logger.info(f"[job {job_id[:8]}] {len(texto)} chars extraídos — analisando [{setor}]")
+        resumo = gerar_resumo_ia(texto, setor)
+        novo   = Contract(nome=filename, texto=texto, resumo=resumo, setor=setor, user_id=user_id)
+        db.add(novo); db.commit(); db.refresh(novo)
+        db.add(Message(contrato_id=novo.id, autor="ai",
+                       texto=f"Análise concluída pelo setor {PROMPTS_SETORES[setor]['nome']}."))
+        db.commit()
+        _finalizar_job(job_id, novo.id, {
+            "id": novo.id, "nome": filename, "resumo": resumo,
+            "setor": setor, "setor_nome": PROMPTS_SETORES[setor]['nome']
+        })
+        logger.info(f"[job {job_id[:8]}] ✅ Concluído — contrato #{novo.id}")
+    except Exception as e:
+        logger.error(f"[job {job_id[:8]}] ❌ {e}")
+        _falhar_job(job_id, str(e)[:300])
+    finally:
+        db.close()
 
 user_role_association = Table(
     'user_role_association', Base.metadata,
@@ -1305,27 +1356,45 @@ async def upload_contrato(
     db:           Session    = Depends(get_db),
     current_user: User       = Depends(get_current_user)
 ):
+    """
+    Recebe o PDF e retorna IMEDIATAMENTE um job_id.
+    A análise roda em background — use GET /job/{job_id} para acompanhar.
+    Isso evita o timeout de 30s do Render free tier.
+    """
     if not file.filename.lower().endswith('.pdf'):
         raise HTTPException(status_code=400, detail="Apenas arquivos PDF são permitidos")
     if setor not in PROMPTS_SETORES:
         setor = "juridico"
-    try:
-        conteudo = await file.read()
-        texto    = extrair_texto_pdf(conteudo)
-        logger.info(f"📄 Texto extraído: {len(texto)} chars — iniciando análise [{setor}]")
-        resumo   = gerar_resumo_ia(texto, setor)
-        novo     = Contract(nome=file.filename, texto=texto, resumo=resumo,
-                            setor=setor, user_id=current_user.id)
-        db.add(novo); db.commit(); db.refresh(novo)
-        db.add(Message(contrato_id=novo.id, autor="ai",
-                       texto=f"Análise concluída pelo setor {PROMPTS_SETORES[setor]['nome']}."))
-        db.commit()
-        return {"id": novo.id, "nome": file.filename, "resumo": resumo,
-                "setor": setor, "setor_nome": PROMPTS_SETORES[setor]['nome']}
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erro ao processar arquivo: {str(e)}")
+
+    conteudo = await file.read()
+    job_id   = _criar_job()
+
+    t = threading.Thread(
+        target=_processar_em_background,
+        args=(job_id, conteudo, file.filename, setor, current_user.id),
+        daemon=True
+    )
+    t.start()
+    logger.info(f"🚀 Job {job_id[:8]} iniciado para '{file.filename}' [{setor}]")
+
+    return {"job_id": job_id, "status": "processing",
+            "mensagem": "Análise iniciada. Acompanhe em /job/{job_id}"}
+
+
+@app.get("/job/{job_id}", tags=["Contratos"])
+async def status_job(job_id: str, current_user: User = Depends(get_current_user)):
+    """Polling do status de análise. Retorna: processing | done | error."""
+    with _jobs_lock:
+        job = _jobs.get(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job não encontrado")
+    return {
+        "job_id":      job_id,
+        "status":      job["status"],        # processing | done | error
+        "result":      job.get("result"),    # preenchido quando done
+        "error":       job.get("error"),     # preenchido quando error
+        "contrato_id": job.get("contrato_id")
+    }
 
 @app.get("/contratos/listar", tags=["Contratos"])
 async def listar_contratos(
