@@ -417,10 +417,22 @@ function configurarSetores() {
         // Constrói a lista de setores do usuário a partir de seus roles
         let p = [];
 
-        // Tenta pelo role principal
+        // Tenta pelo role principal (string exata e slug)
         const rolePrincipal = usuario.role.toLowerCase();
         if (MAPA_SETORES[rolePrincipal]) {
             p = [...MAPA_SETORES[rolePrincipal]];
+        }
+        // Tenta também pelo slug do rolePrincipal (ex: "t.i." → "ti")
+        if (!p.length) {
+            const slugPrincipal = _slugSetor(usuario.role);
+            if (MAPA_SETORES[slugPrincipal]) {
+                p = [...MAPA_SETORES[slugPrincipal]];
+            }
+            // Ou diretamente como setor (ex: role "T.I." → setor.id "ti")
+            if (!p.length) {
+                const setorDireto = setoresDisponiveis.find(s => s.id === slugPrincipal);
+                if (setorDireto) p.push(setorDireto.id);
+            }
         }
 
         // Complementa com todos os roles do usuário
