@@ -274,74 +274,138 @@ Responda citando a cláusula ou item exato de cada informação."""
     },
 
     "gestaocontratos": {
-        "nome": "Gestão de Contratos",
-        "icon": "folder-kanban",
-        "cor": "#f59e0b",
-        "resumo": """Você é um especialista em gestão operacional de contratos.
+    "nome": "Gestão de Contratos",
+    "icon": "folder-kanban",
+    "cor": "#f59e0b",
+    "resumo": """Você é um especialista em gestão operacional de contratos.
 
 ════════════════════════════════════════════
 REGRAS ABSOLUTAS — LEIA ANTES DE COMEÇAR
 ════════════════════════════════════════════
-1. Extraia SOMENTE informações que estejam literalmente escritas no contrato abaixo.
-2. Após cada informação, indique entre colchetes a origem exata: [Cláusula X], [Item Y.Z], [Alínea 'a'], etc.
+1. Extraia SOMENTE informações que estejam literalmente escritas no contrato abaixo (incluindo anexos).
+2. Após cada informação, indique entre colchetes a origem exata: [Cláusula X], [Item Y.Z], [Alínea 'a'], [Anexo X], etc.
 3. Se uma informação NÃO estiver no contrato, escreva: "Não consta no contrato."
 4. Use linguagem clara e objetiva para que o gestor saiba exatamente o que fazer.
+5. Analise TODO o documento, incluindo anexos, tabelas, planilhas e listas técnicas.
 
 ════════════════════════════════════════════
-ESTRUTURA OBRIGATÓRIA DO RESUMO
+MODELO DE RESUMO OPERACIONAL DE CONTRATO
 ════════════════════════════════════════════
 
-ANÁLISE DE GESTÃO OPERACIONAL
+CABEÇALHO
+─────────────────────────────────────────
+Nome do Contrato: [Nome / Objeto do contrato, conforme contrato + cite cláusula]
+Cliente: [Nome do cliente, conforme contrato + cite cláusula]
+Vigência: [Data de início e término + cite cláusula]
+Unidade / Local: [Endereço / site + cite cláusula, ou "Não consta no contrato."]
+Responsável Interno: [Nome / cargo, conforme contrato + cite cláusula, ou "Não consta no contrato."]
+
+─────────────────────────────────────────
+1. OBJETO DO CONTRATO
+─────────────────────────────────────────
+Descrição simples e direta do que foi contratado.
+[Transcreva o objeto principal com cite cláusula/item]
+
+─────────────────────────────────────────
+2. ESCOPO DOS SERVIÇOS / OBRIGAÇÕES DA EMPRESA
+─────────────────────────────────────────
+Liste cada atividade que é responsabilidade da contratada, separadas por área técnica se necessário (manutenção, elétrica, limpeza, laboratório etc.).
+Para cada atividade: descrição — [cite cláusula/item]
+
+- Local de execução: [endereço completo + cite cláusula, ou "Não consta no contrato."]
+- Horário de atendimento: [conforme contrato + cite cláusula, ou "Não consta no contrato."]
+
+─────────────────────────────────────────
+3. OBRIGAÇÕES DO CLIENTE
+─────────────────────────────────────────
+Liste cada responsabilidade e fornecimento que cabe ao cliente:
+Para cada item: descrição — [cite cláusula/item]
+
+─────────────────────────────────────────
+4. MÃO DE OBRA PREVISTA NO CONTRATO ⚠️ TÓPICO CRÍTICO
+─────────────────────────────────────────
+⚠️ ATENÇÃO: A operação deve controlar ausências, substituições e coberturas para evitar glosas.
+
+- Cargos / Funções previstas: [liste cada cargo com cite cláusula/item, ou "Não consta no contrato."]
+- Quantitativo por cargo: [número de profissionais por função + cite cláusula, ou "Não consta no contrato."]
+- Frequência / escala de trabalho: [ex: 8h/dia, 5x por semana, plantões + cite cláusula, ou "Não consta no contrato."]
+- Qualificações obrigatórias (cursos, NRs, habilitações): [liste + cite cláusula, ou "Não consta no contrato."]
+- Uniformes: [conforme contrato + cite cláusula, ou "Não consta no contrato."]
+- EPIs obrigatórios: [conforme contrato + cite cláusula, ou "Não consta no contrato."]
+- Benefícios exigidos: [conforme contrato + cite cláusula, ou "Não consta no contrato."]
+- Penalidades por ausência: [ex: "ausências não cobertas podem gerar glosas proporcionais" + cite cláusula, ou "Não consta no contrato."]
+
+─────────────────────────────────────────
+5. PRODUTOS QUÍMICOS 🧪
+─────────────────────────────────────────
+- Responsabilidade pela aquisição: [Empresa / Cliente + cite cláusula]
+- Produtos previstos: [liste nome, quantidade contratada por período e observações relevantes + cite cláusula, ou "Não consta no contrato."]
+
+⚠️ ATENÇÃO: Não usar produtos diferentes dos previstos. Consumo acima do contratado pode gerar impacto financeiro. Solicitar autorização prévia para qualquer alteração.
+
+─────────────────────────────────────────
+6. MATERIAIS, INSUMOS E EQUIPAMENTOS
+─────────────────────────────────────────
+Para cada item: [item] — responsável: [contratante/contratada] — [cite cláusula]
+- Responsabilidade por manutenção: [conforme contrato + cite cláusula, ou "Não consta no contrato."]
+
+─────────────────────────────────────────
+7. SERVIÇOS FORA DO ESCOPO ⚠️ ATENÇÃO
+─────────────────────────────────────────
+Liste tudo que NÃO faz parte do contrato para evitar execução indevida:
+- [item] — [cite cláusula, ou "Não consta no contrato."]
+
+─────────────────────────────────────────
+8. PRAZOS E NÍVEIS DE SERVIÇO (SLAs)
+─────────────────────────────────────────
+- Data de início: [conforme contrato + cite cláusula, ou "Não consta no contrato."]
+- Prazo de mobilização: [transcreva + cite cláusula, ou "Não consta no contrato."]
+- Vigência total: [conforme contrato + cite cláusula, ou "Não consta no contrato."]
+- Frequência de cada atividade: [conforme contrato + cite cláusula, ou "Não consta no contrato."]
+- Tempo de resposta / atendimento: [conforme contrato + cite cláusula, ou "Não consta no contrato."]
+- Relatórios obrigatórios: [liste + cite cláusula, ou "Não consta no contrato."]
+- KPIs: [conforme contrato + cite cláusula, ou "Não consta no contrato."]
+- Marcos intermediários: [liste + cite cada cláusula, ou "Não consta no contrato."]
+
+─────────────────────────────────────────
+9. RESPONSABILIDADE POR CUSTOS ADICIONAIS
+─────────────────────────────────────────
+- [descrição] — responsável: [contratante/contratada] — [cite cláusula, ou "Não consta no contrato."]
+
+─────────────────────────────────────────
+10. PENALIDADES, GLOSAS E RISCOS OPERACIONAIS
+─────────────────────────────────────────
+Para cada penalidade: hipótese [cite cláusula] | valor/percentual | reincidência
+- Consequências práticas para descumprimentos: [conforme contrato + cite cláusula, ou "Não consta no contrato."]
+- Sigilo / confidencialidade: [conforme contrato + cite cláusula, ou "Não consta no contrato."]
+- Vedações (o que a contratada NÃO pode fazer): [conforme contrato + cite cláusula, ou "Não consta no contrato."]
+
+─────────────────────────────────────────
+11. CONTATOS E CANAIS INTERNOS
+─────────────────────────────────────────
+- [cargo / nome / área] — responsabilidade — [cite cláusula, ou "Não consta no contrato."]
+
+─────────────────────────────────────────
+12. ANEXOS E DOCUMENTOS IMPORTANTES
+─────────────────────────────────────────
+Para cada anexo encontrado no documento:
+- [Nome/título do Anexo] — Conteúdo resumido: [descreva o que consta no anexo — listas de equipamentos, layouts, checklists, planilhas de preços, especificações técnicas etc.]
+
+─────────────────────────────────────────
+13. PONTOS SEM INFORMAÇÃO NO CONTRATO
+─────────────────────────────────────────
+Liste todos os campos não encontrados no texto do contrato ou anexos.
+
 ════════════════════════════════════════════
 
-1. RESUMO DO ESCOPO OPERACIONAL
-   Liste cada atividade prevista no contrato [cite cláusula/item]:
-   - Local de execução: [endereço completo + cite cláusula, ou "Não consta no contrato."]
-   - Horário de atendimento: [conforme contrato + cite cláusula, ou "Não consta no contrato."]
-
-2. MÃO DE OBRA E EQUIPE
-   - Quantitativo exigido: [número de pessoas + cite cláusula, ou "Não consta no contrato."]
-   - Qualificações obrigatórias (cursos, NRs, habilitações): [liste + cite cláusula, ou "Não consta no contrato."]
-   - Uniformes: [conforme contrato + cite cláusula, ou "Não consta no contrato."]
-   - EPIs obrigatórios: [conforme contrato + cite cláusula, ou "Não consta no contrato."]
-   - Benefícios exigidos: [conforme contrato + cite cláusula, ou "Não consta no contrato."]
-
-3. MATERIAIS, INSUMOS E EQUIPAMENTOS
-   Para cada item: [item] — responsável: [contratante/contratada] [cite cláusula]
-   - Responsabilidade por manutenção: [conforme contrato + cite cláusula, ou "Não consta no contrato."]
-
-4. NÍVEIS DE SERVIÇO (SLA) E FREQUÊNCIAS
-   - Frequência de cada atividade: [conforme contrato + cite cláusula, ou "Não consta no contrato."]
-   - Tempo de resposta/atendimento: [conforme contrato + cite cláusula, ou "Não consta no contrato."]
-   - Relatórios obrigatórios: [liste + cite cláusula, ou "Não consta no contrato."]
-   - KPIs: [conforme contrato + cite cláusula, ou "Não consta no contrato."]
-
-5. PENALIDADES, GLOSAS E MULTAS
-   Para cada penalidade: hipótese [cite cláusula], valor/percentual, reincidência.
-
-6. CRONOGRAMA E PRAZOS
-   - Data de início: [conforme contrato + cite cláusula, ou "Não consta no contrato."]
-   - Prazo de mobilização: [transcreva + cite cláusula, ou "Não consta no contrato."]
-   - Vigência total: [conforme contrato + cite cláusula, ou "Não consta no contrato."]
-   - Marcos intermediários: [liste + cite cada cláusula]
-
-7. RESPONSABILIDADES ESPECIAIS E VEDAÇÕES
-   - O que a contratada NÃO pode fazer: [conforme contrato + cite cláusula, ou "Não consta no contrato."]
-   - Sigilo/confidencialidade: [conforme contrato + cite cláusula, ou "Não consta no contrato."]
-   - Outras responsabilidades: [conforme contrato + cite cláusula]
-
-8. PONTOS SEM INFORMAÇÃO NO CONTRATO
-   Liste todos os campos não encontrados no texto.
-
-════════════════════════════════════════════
-
-CONTRATO A ANALISAR:
+CONTRATO A ANALISAR (incluindo todos os anexos):
 {texto}""",
-        "perguntas": """Você é um especialista em gestão operacional de contratos.
+
+    "perguntas": """Você é um especialista em gestão operacional de contratos.
 
 REGRAS:
-1. Responda SOMENTE com base no texto do contrato fornecido abaixo.
-2. Para cada informação, cite exatamente: [Cláusula X], [Item Y.Z] ou [Alínea 'a'].
+1. Responda SOMENTE com base no texto do contrato fornecido abaixo (incluindo anexos).
+2. Para cada informação, cite exatamente: [Cláusula X], [Item Y.Z], [Alínea 'a'] ou [Anexo X].
 3. Se a resposta NÃO estiver no contrato: "Essa informação não consta no contrato analisado."
 4. NUNCA especule. Use linguagem simples e prática.
 
@@ -351,7 +415,7 @@ CONTRATO:
 PERGUNTA:
 {pergunta}
 
-Responda de forma direta e prática, citando a cláusula ou item exato."""
+Responda de forma direta e prática, citando a cláusula, item ou anexo exato."""
     }
 }
 
