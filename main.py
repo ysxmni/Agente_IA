@@ -36,6 +36,7 @@ import datetime
 from typing import Annotated
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from google import genai
+from google.genai import types  # ✅ AJUSTE 1 — importação necessária para GenerateContentConfig
 from dotenv import load_dotenv
 import os
 import json
@@ -282,34 +283,38 @@ Responda citando a cláusula ou item exato de cada informação."""
 ════════════════════════════════════════════
 ❌ PROIBIÇÕES ABSOLUTAS — NUNCA FAÇA ISSO
 ════════════════════════════════════════════
-❌ NUNCA crie uma seção chamada "Pontos sem informação", 
-   "Informações não encontradas", "Campos não preenchidos" 
+❌ NUNCA crie uma seção chamada "Pontos sem informação",
+   "Informações não encontradas", "Campos não preenchidos",
+   "Riscos identificados", "Informações relevantes"
    ou qualquer variação disso. Se um dado não constar, simplesmente omita.
 ❌ NUNCA ignore páginas do PDF por serem tabelas, listas ou planilhas.
 ❌ NUNCA resuma os anexos em uma linha. Cada anexo exige um bloco completo.
 ❌ NUNCA pare de ler antes da última página do documento.
+❌ NUNCA repita o mesmo item mais de uma vez.
+❌ NUNCA continue escrevendo após o marcador ═══FIM═══
 
 ════════════════════════════════════════════
 ✅ REGRAS OBRIGATÓRIAS
 ════════════════════════════════════════════
-1. Este PDF contém o contrato principal E seus anexos em sequência, 
+1. Este PDF contém o contrato principal E seus anexos em sequência,
    podendo ter 30, 50, 70 páginas ou mais. LEIA TODAS SEM EXCEÇÃO.
 2. Extraia SOMENTE informações literalmente escritas no documento.
-3. Após cada informação, cite a origem: [Cláusula X], [Item Y.Z], 
+3. Após cada informação, cite a origem: [Cláusula X], [Item Y.Z],
    [Anexo X – Item Y], [Tabela Z do Anexo X].
-4. Se um dado não constar no documento, simplesmente NÃO mencione 
+4. Se um dado não constar no documento, simplesmente NÃO mencione
    aquele campo. Não escreva "não consta" e não crie listas do que falta.
 5. Use linguagem clara e objetiva.
+6. Ao terminar o item 11, escreva ═══FIM═══ e PARE imediatamente.
 
 ════════════════════════════════════════════
 ⚠️ PASSO OBRIGATÓRIO ANTES DE ESCREVER
 ════════════════════════════════════════════
-Antes de iniciar o resumo, percorra visualmente TODAS as páginas do PDF 
+Antes de iniciar o resumo, percorra visualmente TODAS as páginas do PDF
 e liste internamente (sem escrever para o usuário):
 - Número total de páginas
 - Onde termina o corpo do contrato
 - Título e localização de CADA anexo encontrado
-- Quais páginas contêm tabelas, listas de equipamentos, 
+- Quais páginas contêm tabelas, listas de equipamentos,
   planilhas de preços ou especificações técnicas
 
 Somente após essa varredura completa, escreva o resumo abaixo.
@@ -363,7 +368,7 @@ Separe por área técnica quando houver:
   → [Nome] | Quantidade: [qtd/período] | Obs: [licença, armazenamento]
   → [repita para cada produto encontrado]
 
-⚠️ Não usar produtos diferentes dos previstos. Consumo acima do 
+⚠️ Não usar produtos diferentes dos previstos. Consumo acima do
 contratado gera impacto financeiro. Autorização prévia obrigatória.
 
 ──────────────────────────────────────────
@@ -409,11 +414,12 @@ Sigilo e confidencialidade:
 ──────────────────────────────────────────
 11. ANEXOS E DOCUMENTOS IMPORTANTES
 ──────────────────────────────────────────
-⚠️ INSTRUÇÃO CRÍTICA PARA O GEMINI:
-Você recebeu um PDF com múltiplas páginas. Os ANEXOS estão nas páginas 
-FINAIS do documento. Volte agora às páginas finais e leia cada anexo 
-com atenção. Para cada anexo encontrado, preencha OBRIGATORIAMENTE 
+⚠️ INSTRUÇÃO CRÍTICA:
+Você recebeu um PDF com múltiplas páginas. Os ANEXOS estão nas páginas
+FINAIS do documento. Volte agora às páginas finais e leia cada anexo
+com atenção. Para cada anexo encontrado, preencha OBRIGATORIAMENTE
 o modelo abaixo. Nenhum anexo pode ser ignorado ou resumido em uma linha.
+Máximo de 10 anexos. Após o último anexo, escreva ═══FIM═══ e PARE.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ANEXO [número/letra] — [Título exato do anexo]
@@ -434,13 +440,7 @@ ANEXO [número/letra] — [Título exato do anexo]
 
 [Repita o bloco acima para CADA anexo encontrado, sem exceção]
 
-════════════════════════════════════════════
-FIM DO RESUMO OPERACIONAL
-════════════════════════════════════════════
-
-❌ LEMBRETE FINAL: Não crie nenhuma seção adicional após o item 11.
-   Não liste pontos sem informação. Não adicione observações finais
-   além do que foi solicitado na estrutura acima.
+═══FIM═══
 
 CONTRATO A ANALISAR:
 {texto}""",
@@ -448,10 +448,10 @@ CONTRATO A ANALISAR:
     "perguntas": """Você é um especialista em gestão operacional de contratos.
 
 REGRAS:
-1. Responda SOMENTE com base no contrato abaixo, incluindo 
+1. Responda SOMENTE com base no contrato abaixo, incluindo
    o corpo do contrato E todos os seus anexos.
 2. Cite sempre: [Cláusula X], [Item Y.Z] ou [Anexo X – Item Y].
-3. Se não encontrar a informação: 
+3. Se não encontrar a informação:
    "Essa informação não consta no contrato analisado."
 4. NUNCA especule. Linguagem simples e direta.
 5. Para equipamentos, produtos químicos e especificações técnicas,
@@ -1022,10 +1022,23 @@ def _chamar_gemini(prompt: str, descricao: str = "") -> str:
     for tentativa in range(4):
         try:
             inicio   = time.time()
-            response = client.models.generate_content(model=MODELO_ATIVO, contents=prompt)
+            # ✅ AJUSTE 2 — config com temperature, max_output_tokens e stop_sequences
+            response = client.models.generate_content(
+                model=MODELO_ATIVO,
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    temperature=0.1,
+                    max_output_tokens=8192,
+                    stop_sequences=["═══FIM═══"]
+                )
+            )
             duracao  = time.time() - inicio
             logger.info(f"✅ Gemini [{descricao}] respondeu em {duracao:.1f}s")
-            resultado = limpar_markdown(response.text if response and response.text else "")
+            # ✅ AJUSTE 3 — corta tudo após o marcador de fim para evitar loops infinitos
+            texto_bruto = response.text if response and response.text else ""
+            if "═══FIM═══" in texto_bruto:
+                texto_bruto = texto_bruto.split("═══FIM═══")[0]
+            resultado = limpar_markdown(texto_bruto)
             if not resultado and tentativa < 2:
                 logger.warning(f"⚠️ Gemini [{descricao}] resposta vazia — retry {tentativa+1}/4, aguardando 5s...")
                 time.sleep(5)
