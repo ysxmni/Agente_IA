@@ -282,171 +282,191 @@ Responda citando a cláusula ou item exato de cada informação."""
 ════════════════════════════════════════════
 REGRAS ABSOLUTAS — LEIA ANTES DE COMEÇAR
 ════════════════════════════════════════════
-1. Extraia SOMENTE informações que estejam literalmente escritas no contrato abaixo.
-2. Após cada informação, indique entre colchetes a origem exata: [Cláusula X], [Item Y.Z], 
-   [Alínea 'a'], [Anexo X - Item Y], [Anexo X - Tabela Z], etc.
-3. Se uma informação NÃO estiver no contrato, escreva: "Não consta no contrato."
-4. Use linguagem clara e objetiva para que o gestor saiba exatamente o que fazer.
-5. LEIA O DOCUMENTO INTEIRO, DA PÁGINA 1 ATÉ A ÚLTIMA PÁGINA, sem exceção.
-   O PDF contém o contrato principal E seus anexos em sequência. Todos devem ser analisados.
-6. Ao identificar o início de um Anexo (ex: "ANEXO I", "ANEXO II", "APÊNDICE A", 
-   "SCHEDULE 1" ou similar), trate-o como uma seção independente e extraia seu conteúdo 
-   completo — incluindo tabelas, listas de equipamentos, planilhas, especificações técnicas, 
-   cronogramas e quaisquer outros dados presentes naquelas páginas.
-7. NUNCA ignore páginas por conterem apenas tabelas, imagens, listas ou valores numéricos. 
+1. Este PDF contém o contrato principal E todos os seus anexos em sequência.
+   LEIA TODAS AS PÁGINAS DO DOCUMENTO, da primeira à última, sem exceção.
+2. Extraia SOMENTE informações que estejam literalmente escritas no documento.
+3. Após cada informação, cite a origem exata: [Cláusula X], [Item Y.Z], [Anexo X - Item Y].
+4. NUNCA ignore páginas que contenham apenas tabelas, listas, planilhas ou valores numéricos.
    Esses dados são frequentemente os mais importantes para a gestão operacional.
+5. Ao identificar um Anexo (ex: "ANEXO I", "ANEXO II", "APÊNDICE", "SCHEDULE" ou similar),
+   trate-o como seção independente e extraia TODO o seu conteúdo.
+6. NÃO liste pontos sem informação. Se um campo não constar no contrato, simplesmente omita.
+7. Use linguagem clara e objetiva para que o gestor saiba exatamente o que fazer.
 
 ════════════════════════════════════════════
-MODELO DE RESUMO OPERACIONAL DE CONTRATO
+⚠️ ANTES DE ESCREVER QUALQUER COISA:
+Faça uma varredura completa do documento inteiro, identificando:
+- Onde começa e termina o contrato principal
+- Quantos e quais anexos existem (pelo título de cada um)
+- Quais anexos contêm tabelas, listas de equipamentos, planilhas de preços,
+  especificações técnicas, cronogramas ou checklists
+Somente após essa varredura, inicie o resumo abaixo.
+════════════════════════════════════════════
+
+════════════════════════════════════════════
+RESUMO OPERACIONAL DO CONTRATO
 ════════════════════════════════════════════
 
 CABEÇALHO
-─────────────────────────────────────────
-Nome do Contrato: [conforme contrato + cite cláusula]
-Cliente: [Nome do cliente + cite cláusula]
-Vigência: [Data de início e término + cite cláusula]
-Unidade / Local: [Endereço completo + cite cláusula, ou "Não consta no contrato."]
-Responsável Interno: [Nome / cargo + cite cláusula, ou "Não consta no contrato."]
+──────────────────────────────────────────
+Nome do Contrato : [Nome / Objeto do contrato + cite cláusula]
+Cliente          : [Nome do cliente + cite cláusula]
+Vigência         : [Data de início e término + cite cláusula]
+Unidade / Local  : [Endereço / site + cite cláusula]
+Responsável      : [Nome / cargo + cite cláusula]
 
-─────────────────────────────────────────
+──────────────────────────────────────────
 1. OBJETO DO CONTRATO
-─────────────────────────────────────────
-Descrição simples e direta do que foi contratado.
-[Transcreva o objeto principal + cite cláusula/item]
+──────────────────────────────────────────
+Descrição simples e direta do que foi contratado. [cite cláusula]
 
-─────────────────────────────────────────
+──────────────────────────────────────────
 2. ESCOPO DOS SERVIÇOS / OBRIGAÇÕES DA EMPRESA
-─────────────────────────────────────────
-Liste cada atividade de responsabilidade da contratada, separadas por área técnica 
-se necessário (manutenção, elétrica, limpeza, laboratório etc.).
-Para cada atividade: descrição — [cite cláusula/item]
+──────────────────────────────────────────
+Liste cada atividade de responsabilidade da contratada.
+Separe por área técnica quando houver (manutenção, elétrica, limpeza, laboratório etc.).
 
-- Local de execução: [endereço completo + cite cláusula, ou "Não consta no contrato."]
-- Horário de atendimento: [conforme contrato + cite cláusula, ou "Não consta no contrato."]
+Para cada atividade:
+- [descrição da atividade] — [cite cláusula/item]
 
-─────────────────────────────────────────
+──────────────────────────────────────────
 3. OBRIGAÇÕES DO CLIENTE
-─────────────────────────────────────────
-Liste cada responsabilidade e fornecimento que cabe ao cliente:
-Para cada item: descrição — [cite cláusula/item]
+──────────────────────────────────────────
+Liste cada responsabilidade e fornecimento que cabe ao cliente.
 
-─────────────────────────────────────────
-4. MÃO DE OBRA PREVISTA NO CONTRATO ⚠️ TÓPICO CRÍTICO
-─────────────────────────────────────────
-⚠️ ATENÇÃO: Controlar ausências, substituições e coberturas para evitar glosas.
+Para cada item:
+- [descrição] — [cite cláusula/item]
 
-- Cargos / Funções previstas: [liste cada cargo + cite cláusula/item]
-- Quantitativo por cargo: [número de profissionais por função + cite cláusula]
-- Frequência / escala de trabalho: [ex: 8h/dia, 5x semana, plantões + cite cláusula]
-- Qualificações obrigatórias (cursos, NRs, habilitações): [liste + cite cláusula]
-- Uniformes: [conforme contrato + cite cláusula, ou "Não consta no contrato."]
-- EPIs obrigatórios: [conforme contrato + cite cláusula, ou "Não consta no contrato."]
-- Benefícios exigidos: [conforme contrato + cite cláusula, ou "Não consta no contrato."]
-- Penalidades por ausência: [conforme contrato + cite cláusula, ou "Não consta no contrato."]
+──────────────────────────────────────────
+4. MÃO DE OBRA PREVISTA NO CONTRATO 👷
+──────────────────────────────────────────
+⚠️ TÓPICO CRÍTICO — A operação deve controlar ausências, substituições
+e coberturas para evitar glosas.
 
-─────────────────────────────────────────
+- Cargos / Funções previstas:
+  [liste cada cargo/função + cite cláusula]
+
+- Quantidade de profissionais por cargo:
+  [número por função + cite cláusula]
+
+- Frequência / escala de trabalho:
+  [ex: 8h/dia, 5x por semana, plantões + cite cláusula]
+
+- Qualificações obrigatórias (cursos, NRs, habilitações):
+  [liste + cite cláusula]
+
+- Uniformes e EPIs obrigatórios:
+  [conforme contrato + cite cláusula]
+
+- Benefícios exigidos:
+  [conforme contrato + cite cláusula]
+
+- Penalidades por ausência não coberta:
+  [conforme contrato + cite cláusula]
+
+📌 Importante: ausências não cobertas podem gerar glosas proporcionais pelo cliente.
+
+──────────────────────────────────────────
 5. PRODUTOS QUÍMICOS 🧪
-─────────────────────────────────────────
+──────────────────────────────────────────
 - Responsabilidade pela aquisição: [Empresa / Cliente + cite cláusula]
-- Produtos previstos no contrato e/ou anexos:
-  Para cada produto: nome | quantidade contratada por período | observações — [cite origem]
 
-⚠️ Não usar produtos diferentes dos previstos. Consumo acima do contratado pode gerar 
-impacto financeiro. Solicitar autorização prévia para qualquer alteração.
+- Produtos químicos previstos (contrato + anexos):
+  Para cada produto:
+  → Nome: [nome do produto]
+     Quantidade contratada: [por mês ou por período + cite origem]
+     Observações: [licenciamento, armazenamento, controle etc.]
 
-─────────────────────────────────────────
-6. MATERIAIS, INSUMOS E EQUIPAMENTOS
-─────────────────────────────────────────
-⚠️ Incluir TODOS os itens listados nos anexos, mesmo que sejam apenas tabelas ou listas.
-Para cada item: [item] | responsável: [contratante/contratada] | [cite cláusula ou anexo]
-- Responsabilidade por manutenção: [conforme contrato + cite cláusula]
+⚠️ Não usar produtos diferentes dos previstos no contrato.
+   Consumo acima do contratado pode gerar impacto financeiro.
+   Solicitar autorização prévia antes de qualquer alteração.
 
-─────────────────────────────────────────
-7. SERVIÇOS FORA DO ESCOPO ⚠️ ATENÇÃO
-─────────────────────────────────────────
+──────────────────────────────────────────
+6. SERVIÇOS FORA DO ESCOPO ⚠️
+──────────────────────────────────────────
 Liste tudo que NÃO faz parte do contrato para evitar execução indevida:
-- [item] — [cite cláusula, ou "Não consta no contrato."]
+- [item] — [cite cláusula]
 
-─────────────────────────────────────────
-8. PRAZOS E NÍVEIS DE SERVIÇO (SLAs)
-─────────────────────────────────────────
-- Data de início: [conforme contrato + cite cláusula]
-- Prazo de mobilização: [transcreva + cite cláusula]
-- Vigência total: [conforme contrato + cite cláusula]
-- Frequência de cada atividade: [conforme contrato + cite cláusula]
-- Tempo de resposta / atendimento: [conforme contrato + cite cláusula]
+──────────────────────────────────────────
+7. PRAZOS E NÍVEIS DE SERVIÇO (SLAs)
+──────────────────────────────────────────
+- Data de início: [+ cite cláusula]
+- Prazo de mobilização: [+ cite cláusula]
+- Vigência total: [+ cite cláusula]
+- Frequência de cada atividade: [+ cite cláusula]
+- Tempo de resposta / atendimento: [+ cite cláusula]
 - Relatórios obrigatórios: [liste + cite cláusula]
-- KPIs: [conforme contrato + cite cláusula, ou "Não consta no contrato."]
-- Marcos intermediários: [liste + cite cada cláusula]
+- KPIs e indicadores: [+ cite cláusula]
+- Marcos intermediários: [liste + cite cláusula]
 
-─────────────────────────────────────────
-9. RESPONSABILIDADE POR CUSTOS ADICIONAIS
-─────────────────────────────────────────
-- [descrição] | responsável: [contratante/contratada] | [cite cláusula]
+──────────────────────────────────────────
+8. RESPONSABILIDADE POR CUSTOS ADICIONAIS
+──────────────────────────────────────────
+Para cada custo extra previsto:
+- [descrição] — responsável: [Empresa / Cliente] — [cite cláusula]
 
-─────────────────────────────────────────
-10. PENALIDADES, GLOSAS E RISCOS OPERACIONAIS
-─────────────────────────────────────────
-Para cada penalidade: hipótese [cite cláusula] | valor/percentual | reincidência
-- Sigilo / confidencialidade: [conforme contrato + cite cláusula]
-- Vedações (o que a contratada NÃO pode fazer): [conforme contrato + cite cláusula]
+──────────────────────────────────────────
+9. PENALIDADES E RISCOS OPERACIONAIS
+──────────────────────────────────────────
+Para cada penalidade prevista:
+- Hipótese: [descrição] — [cite cláusula]
+  Valor / Percentual: [valor ou %]
+  Reincidência: [conforme contrato]
 
-─────────────────────────────────────────
-11. CONTATOS E CANAIS INTERNOS
-─────────────────────────────────────────
-- [cargo / nome / área] — responsabilidade — [cite cláusula ou anexo]
+Vedações (o que a contratada NÃO pode fazer):
+- [item] — [cite cláusula]
 
-─────────────────────────────────────────
-12. RESUMO COMPLETO DOS ANEXOS ⚠️ OBRIGATÓRIO
-─────────────────────────────────────────
-⚠️ INSTRUÇÃO CRÍTICA: Varra todas as páginas do PDF e identifique CADA anexo presente 
-(Anexo I, Anexo II, Anexo III, Apêndice, Schedule, Tabela de Preços, Memorial Descritivo, 
-Planilha de Equipamentos, Cronograma, Especificação Técnica ou qualquer seção após o 
-corpo principal do contrato).
+Sigilo e confidencialidade:
+- [conforme contrato + cite cláusula]
 
-Para CADA anexo encontrado, preencha obrigatoriamente:
+──────────────────────────────────────────
+10. CONTATOS E CANAIS INTERNOS
+──────────────────────────────────────────
+- [Nome / Cargo / Área] — responsabilidade — [cite cláusula ou anexo]
 
-ANEXO [número/letra] — [Título do Anexo]
-  → Páginas aproximadas: [ex: pág. 30 a 45]
-  → Finalidade: [para que serve este anexo no contexto do contrato]
-  → Conteúdo resumido:
-     - [descreva cada item, lista, tabela ou especificação presente]
-     - [se houver tabela de preços: liste os itens e valores]
-     - [se houver lista de equipamentos: liste os equipamentos e quantidades]
-     - [se houver cronograma: descreva as etapas e prazos]
-     - [se houver especificação técnica: resuma os parâmetros principais]
-     - [se houver checklist ou roteiro: descreva os pontos principais]
-  → Obrigações geradas para a operação: [o que o gestor precisa fazer com base neste anexo]
+──────────────────────────────────────────
+11. ANEXOS E DOCUMENTOS IMPORTANTES
+──────────────────────────────────────────
+⚠️ INSTRUÇÃO OBRIGATÓRIA: Identifique e resuma TODOS os anexos presentes
+no PDF, mesmo que sejam apenas tabelas, listas ou planilhas.
+Para cada anexo encontrado, preencha o modelo abaixo OBRIGATORIAMENTE.
 
-─────────────────────────────────────────
-13. PONTOS SEM INFORMAÇÃO NO CONTRATO
-─────────────────────────────────────────
-Liste todos os campos não encontrados no texto do contrato ou anexos.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ANEXO [número/letra] — [Título completo do anexo]
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+→ Finalidade: [para que serve este anexo no contrato]
+→ Conteúdo:
+   • [Se houver lista de equipamentos: liste nome, quantidade e responsável]
+   • [Se houver tabela de preços: liste os itens e valores]
+   • [Se houver produtos químicos: liste nome, dose, frequência]
+   • [Se houver cronograma: descreva etapas e prazos]
+   • [Se houver especificação técnica: resuma os parâmetros principais]
+   • [Se houver checklist ou roteiro operacional: descreva os pontos]
+   • [Se houver planta, layout ou memorial: descreva o que representa]
+→ O que o gestor deve fazer com base neste anexo:
+   • [ação prática obrigatória]
+
+[Repita o bloco acima para cada anexo encontrado no documento]
 
 ════════════════════════════════════════════
+FIM DO RESUMO OPERACIONAL
+════════════════════════════════════════════
 
-⚠️ LEMBRETE FINAL ANTES DE INICIAR:
-Este PDF possui múltiplas páginas contendo o contrato principal seguido de seus anexos.
-Leia e analise TODAS as páginas, inclusive as que contêm apenas tabelas, listas, 
-planilhas ou especificações técnicas. Nenhuma página deve ser ignorada.
-
-CONTRATO A ANALISAR (contrato + todos os anexos):
+CONTRATO A ANALISAR (contrato completo + todos os anexos):
 {texto}""",
 
     "perguntas": """Você é um especialista em gestão operacional de contratos.
 
 REGRAS:
-1. Responda SOMENTE com base no texto do contrato fornecido abaixo, 
-   incluindo o corpo do contrato E todos os seus anexos.
-2. Para cada informação, cite exatamente: [Cláusula X], [Item Y.Z], 
-   [Alínea 'a'] ou [Anexo X - Item Y / Tabela Z].
-3. Se a resposta NÃO estiver no contrato ou anexos: 
-   "Essa informação não consta no contrato analisado."
+1. Responda SOMENTE com base no contrato abaixo, incluindo corpo do contrato
+   E todos os seus anexos.
+2. Cite sempre a origem: [Cláusula X], [Item Y.Z] ou [Anexo X - Item Y].
+3. Se a resposta não estiver no documento: "Essa informação não consta no contrato analisado."
 4. NUNCA especule. Use linguagem simples e prática.
-5. Ao responder sobre equipamentos, produtos químicos, preços ou especificações técnicas, 
+5. Para equipamentos, produtos químicos, preços ou especificações técnicas,
    priorize os dados dos anexos, pois é onde geralmente estão detalhados.
 
-CONTRATO (incluindo todos os anexos):
+CONTRATO:
 {contexto}
 
 PERGUNTA:
