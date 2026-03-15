@@ -36,7 +36,7 @@ import datetime
 from typing import Annotated
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from google import genai
-from google.genai import types  # ✅ AJUSTE 1 — importação necessária para GenerateContentConfig
+from google.genai import types  # ✅ necessário para GenerateContentConfig e Part
 from dotenv import load_dotenv
 import os
 import json
@@ -60,7 +60,7 @@ class UserLogin(BaseModel):
 app = FastAPI(
     title="Analisador de Contratos IA - Sistema Opersan",
     description="Sistema de análise de contratos com IA e gestão multi-setorial",
-    version="4.7.0"
+    version="4.8.0"
 )
 
 app.add_middleware(
@@ -274,11 +274,14 @@ PERGUNTA:
 Responda citando a cláusula ou item exato de cada informação."""
     },
 
-   "gestaocontratos": {
-    "nome": "Gestão de Contratos",
-    "icon": "folder-kanban",
-    "cor": "#f59e0b",
-    "resumo": """Você é um especialista em gestão operacional de contratos.
+    "gestaocontratos": {
+        "nome": "Gestão de Contratos",
+        "icon": "folder-kanban",
+        "cor": "#f59e0b",
+        # ✅ Prompt de resumo — usado quando o PDF é enviado nativamente ao Gemini
+        # O marcador {texto} NÃO é usado neste prompt pois o PDF é enviado como arquivo
+        # Para o modo texto (fallback), o {texto} é inserido automaticamente no final
+        "resumo": """Você é um especialista em gestão operacional de contratos.
 
 ════════════════════════════════════════════
 ❌ PROIBIÇÕES ABSOLUTAS — NUNCA FAÇA ISSO
@@ -440,12 +443,9 @@ ANEXO [número/letra] — [Título exato do anexo]
 
 [Repita o bloco acima para CADA anexo encontrado, sem exceção]
 
-═══FIM═══
+═══FIM═══""",
 
-CONTRATO A ANALISAR:
-{texto}""",
-
-    "perguntas": """Você é um especialista em gestão operacional de contratos.
+        "perguntas": """Você é um especialista em gestão operacional de contratos.
 
 REGRAS:
 1. Responda SOMENTE com base no contrato abaixo, incluindo
@@ -464,7 +464,7 @@ PERGUNTA:
 {pergunta}
 
 Responda citando a cláusula, item ou anexo exato."""
-}
+    }
 }
 
 
@@ -491,13 +491,11 @@ def _get_config_setor(setor_slug: str) -> dict:
     if setor_slug in PROMPTS_SETORES:
         return PROMPTS_SETORES[setor_slug]
 
-    # Tenta encontrar por slug parcial (ex: "financeiro" encontra "financeiro")
     for key, config in PROMPTS_SETORES.items():
         if key in setor_slug or setor_slug in key:
             logger.info(f"⚡ Setor '{setor_slug}' mapeado para '{key}' por similaridade")
             return config
 
-    # Gera prompt genérico especializado para o setor
     nome_legivel = setor_slug.replace("-", " ").replace("_", " ").title()
     logger.info(f"⚡ Gerando prompt dinâmico para setor: '{setor_slug}' ({nome_legivel})")
     return {
@@ -874,20 +872,10 @@ def is_admin_user(user: User) -> bool:
             any(r.name.lower() == "admin" for r in user.roles))
 
 def get_setores_permitidos(user: User, db: Session) -> List[str]:
-    """
-    Retorna slugs dos setores permitidos para o usuário.
-    Para admin: todos os setores do banco.
-    Para outros: slugs baseados nos roles do usuário.
-    DINÂMICO — não usa lista hardcoded.
-    """
     if is_admin_user(user):
-        # Admin vê todos os setores existentes no banco
-        todos_roles = db.query(Role).filter(
-            Role.name.isnot(None)
-        ).all()
+        todos_roles = db.query(Role).filter(Role.name.isnot(None)).all()
         return [_slug_setor(r.name) for r in todos_roles
                 if r.name.lower() not in ("admin",)]
-
     setores = []
     for role in user.roles:
         if role.name.lower() == "admin":
@@ -898,7 +886,7 @@ def get_setores_permitidos(user: User, db: Session) -> List[str]:
     return setores or [_slug_setor(user.roles[0].name) if user.roles else "juridico"]
 
 # ════════════════════════════════════════════════════════════
-# EXTRAÇÃO DE PDF
+# EXTRAÇÃO DE PDF (mantida como fallback para o chat/perguntas)
 # ════════════════════════════════════════════════════════════
 def _extrair_com_pymupdf(conteudo: bytes) -> str:
     doc = fitz.open(stream=conteudo, filetype="pdf")
@@ -977,7 +965,117 @@ def extrair_texto_pdf(conteudo: bytes) -> str:
     return texto
 
 # ════════════════════════════════════════════════════════════
-# PROCESSAMENTO POR CHUNKS
+# CONFIGURAÇÃO PADRÃO DO GEMINI
+# ════════════════════════════════════════════════════════════
+GEMINI_CONFIG = types.GenerateContentConfig(
+    temperature=0.1,
+    max_output_tokens=8192,
+    stop_sequences=["═══FIM═══"]
+)
+
+# ════════════════════════════════════════════════════════════
+# CHAMADA GEMINI — TEXTO (para chunks e perguntas)
+# ════════════════════════════════════════════════════════════
+def _chamar_gemini(prompt: str, descricao: str = "") -> str:
+    if not client or not MODELO_ATIVO:
+        raise Exception("IA indisponível: verifique a GEMINI_API_KEY e o modelo configurado.")
+    BACKOFF_RATE_LIMIT   = [10, 30, 60]
+    BACKOFF_SERVER_ERROR = [5,  15, 30]
+    for tentativa in range(4):
+        try:
+            inicio   = time.time()
+            response = client.models.generate_content(
+                model=MODELO_ATIVO,
+                contents=prompt,
+                config=GEMINI_CONFIG
+            )
+            duracao  = time.time() - inicio
+            logger.info(f"✅ Gemini [{descricao}] respondeu em {duracao:.1f}s")
+            texto_bruto = response.text if response and response.text else ""
+            # Corta tudo após o marcador de fim para evitar loops
+            if "═══FIM═══" in texto_bruto:
+                texto_bruto = texto_bruto.split("═══FIM═══")[0]
+            resultado = limpar_markdown(texto_bruto)
+            if not resultado and tentativa < 2:
+                logger.warning(f"⚠️ Gemini [{descricao}] resposta vazia — retry {tentativa+1}/4, aguardando 5s...")
+                time.sleep(5)
+                continue
+            return resultado
+        except Exception as e:
+            err       = str(e)
+            is_rate   = "429" in err or "quota" in err.lower() or "RESOURCE_EXHAUSTED" in err
+            is_server = "503" in err or "overloaded" in err.lower() or "unavailable" in err.lower()
+            recuperavel = is_rate or is_server
+            if recuperavel and tentativa < 3:
+                espera = (BACKOFF_RATE_LIMIT if is_rate else BACKOFF_SERVER_ERROR)[tentativa]
+                motivo = "rate limit/quota" if is_rate else "servidor sobrecarregado"
+                logger.warning(f"⚠️ Gemini [{descricao}] tent {tentativa+1}/4 — {espera}s ({motivo})")
+                time.sleep(espera)
+                continue
+            else:
+                logger.error(f"❌ Gemini [{descricao}] falhou: {err[:200]}")
+                raise
+    logger.error(f"❌ Gemini [{descricao}] esgotou tentativas")
+    return ""
+
+
+# ════════════════════════════════════════════════════════════
+# ✅ NOVO — CHAMADA GEMINI COM PDF NATIVO
+# Envia o PDF diretamente como arquivo, sem extração de texto.
+# O Gemini lê todas as páginas nativamente, incluindo anexos,
+# tabelas e planilhas que os extratores de texto não capturam.
+# ════════════════════════════════════════════════════════════
+def _chamar_gemini_pdf(pdf_bytes: bytes, prompt: str, descricao: str = "") -> str:
+    if not client or not MODELO_ATIVO:
+        raise Exception("IA indisponível: verifique a GEMINI_API_KEY e o modelo configurado.")
+    BACKOFF_RATE_LIMIT   = [10, 30, 60]
+    BACKOFF_SERVER_ERROR = [5,  15, 30]
+    for tentativa in range(4):
+        try:
+            inicio = time.time()
+            # ✅ Envia PDF como Part nativo + prompt como texto separado
+            response = client.models.generate_content(
+                model=MODELO_ATIVO,
+                contents=[
+                    types.Part.from_bytes(
+                        data=pdf_bytes,
+                        mime_type="application/pdf"
+                    ),
+                    prompt
+                ],
+                config=GEMINI_CONFIG
+            )
+            duracao = time.time() - inicio
+            logger.info(f"✅ Gemini PDF [{descricao}] respondeu em {duracao:.1f}s")
+            texto_bruto = response.text if response and response.text else ""
+            if "═══FIM═══" in texto_bruto:
+                texto_bruto = texto_bruto.split("═══FIM═══")[0]
+            resultado = limpar_markdown(texto_bruto)
+            if not resultado and tentativa < 2:
+                logger.warning(f"⚠️ Gemini PDF [{descricao}] resposta vazia — retry {tentativa+1}/4")
+                time.sleep(5)
+                continue
+            return resultado
+        except Exception as e:
+            err       = str(e)
+            is_rate   = "429" in err or "quota" in err.lower() or "RESOURCE_EXHAUSTED" in err
+            is_server = "503" in err or "overloaded" in err.lower() or "unavailable" in err.lower()
+            recuperavel = is_rate or is_server
+            if recuperavel and tentativa < 3:
+                espera = (BACKOFF_RATE_LIMIT if is_rate else BACKOFF_SERVER_ERROR)[tentativa]
+                motivo = "rate limit/quota" if is_rate else "servidor sobrecarregado"
+                logger.warning(f"⚠️ Gemini PDF [{descricao}] tent {tentativa+1}/4 — {espera}s ({motivo})")
+                time.sleep(espera)
+                continue
+            else:
+                logger.error(f"❌ Gemini PDF [{descricao}] falhou: {err[:200]}")
+                raise
+    logger.error(f"❌ Gemini PDF [{descricao}] esgotou tentativas")
+    return ""
+
+
+# ════════════════════════════════════════════════════════════
+# PROCESSAMENTO POR CHUNKS (mantido para fallback texto)
 # ════════════════════════════════════════════════════════════
 CHUNK_SIZE    = 50_000
 CHUNK_OVERLAP = 300
@@ -1014,53 +1112,6 @@ def _dividir_em_chunks(texto: str) -> list[str]:
             break
     return [c for c in chunks if c]
 
-def _chamar_gemini(prompt: str, descricao: str = "") -> str:
-    if not client or not MODELO_ATIVO:
-        raise Exception("IA indisponível: verifique a GEMINI_API_KEY e o modelo configurado.")
-    BACKOFF_RATE_LIMIT   = [10, 30, 60]
-    BACKOFF_SERVER_ERROR = [5,  15, 30]
-    for tentativa in range(4):
-        try:
-            inicio   = time.time()
-            # ✅ AJUSTE 2 — config com temperature, max_output_tokens e stop_sequences
-            response = client.models.generate_content(
-                model=MODELO_ATIVO,
-                contents=prompt,
-                config=types.GenerateContentConfig(
-                    temperature=0.1,
-                    max_output_tokens=8192,
-                    stop_sequences=["═══FIM═══"]
-                )
-            )
-            duracao  = time.time() - inicio
-            logger.info(f"✅ Gemini [{descricao}] respondeu em {duracao:.1f}s")
-            # ✅ AJUSTE 3 — corta tudo após o marcador de fim para evitar loops infinitos
-            texto_bruto = response.text if response and response.text else ""
-            if "═══FIM═══" in texto_bruto:
-                texto_bruto = texto_bruto.split("═══FIM═══")[0]
-            resultado = limpar_markdown(texto_bruto)
-            if not resultado and tentativa < 2:
-                logger.warning(f"⚠️ Gemini [{descricao}] resposta vazia — retry {tentativa+1}/4, aguardando 5s...")
-                time.sleep(5)
-                continue
-            return resultado
-        except Exception as e:
-            err       = str(e)
-            is_rate   = "429" in err or "quota" in err.lower() or "RESOURCE_EXHAUSTED" in err
-            is_server = "503" in err or "overloaded" in err.lower() or "unavailable" in err.lower()
-            recuperavel = is_rate or is_server
-            if recuperavel and tentativa < 3:
-                espera = (BACKOFF_RATE_LIMIT if is_rate else BACKOFF_SERVER_ERROR)[tentativa]
-                motivo = "rate limit/quota" if is_rate else "servidor sobrecarregado"
-                logger.warning(f"⚠️ Gemini [{descricao}] tent {tentativa+1}/4 — {espera}s ({motivo})")
-                time.sleep(espera)
-                continue
-            else:
-                logger.error(f"❌ Gemini [{descricao}] falhou: {err[:200]}")
-                raise
-    logger.error(f"❌ Gemini [{descricao}] esgotou tentativas")
-    return ""
-
 def _pre_analisar_chunk(chunk: str, numero: int, total: int, setor: str) -> str:
     prompt = f"""Você está lendo a PARTE {numero} de {total} de um contrato.
 
@@ -1089,9 +1140,12 @@ def _consolidar_analise(pre_analises: list[str], setor: str, total_chunks: int) 
         f"═══ EXTRAÇÃO DA PARTE {i+1}/{total_chunks} ═══\n{pa}"
         for i, pa in enumerate(pre_analises) if pa.strip()
     ])
-    template_setor = config_setor["resumo"].replace(
-        "CONTRATO A ANALISAR:\n{texto}",
-        f"""ATENÇÃO IMPORTANTE:
+    # Para o prompt de consolidação, adiciona {texto} no final se necessário
+    prompt_resumo = config_setor["resumo"]
+    if "{texto}" in prompt_resumo:
+        template_setor = prompt_resumo.replace(
+            "CONTRATO A ANALISAR:\n{texto}",
+            f"""ATENÇÃO IMPORTANTE:
 - Este contrato foi dividido em {total_chunks} partes para análise.
 - Abaixo estão as extrações brutas de cada parte.
 - Consolide TUDO em um único relatório final, SEM omitir informações importantes.
@@ -1103,7 +1157,22 @@ EXTRAÇÕES BRUTAS DAS {total_chunks} PARTES DO CONTRATO:
 {blocos}
 
 INSTRUÇÕES FINAIS: Produza o relatório completo seguindo EXATAMENTE a estrutura acima."""
-    )
+        )
+    else:
+        # Prompt sem {texto} (ex: gestaocontratos) — adiciona os blocos no final
+        template_setor = prompt_resumo + f"""
+
+ATENÇÃO IMPORTANTE:
+- Este contrato foi dividido em {total_chunks} partes para análise.
+- Abaixo estão as extrações brutas de cada parte.
+- Consolide TUDO em um único relatório final, SEM omitir informações importantes.
+- NÃO truncar o relatório — inclua todas as seções mesmo que longas.
+
+EXTRAÇÕES BRUTAS DAS {total_chunks} PARTES DO CONTRATO:
+{blocos}
+
+INSTRUÇÕES FINAIS: Produza o relatório completo seguindo EXATAMENTE a estrutura acima."""
+
     resultado = _chamar_gemini(template_setor, "consolidação final")
     if resultado:
         logger.info(f"  ✅ Consolidação final: {len(resultado)} chars")
@@ -1111,21 +1180,71 @@ INSTRUÇÕES FINAIS: Produza o relatório completo seguindo EXATAMENTE a estrutu
         logger.error("  ❌ Consolidação retornou vazio")
     return resultado
 
-def gerar_resumo_ia(texto: str, setor: str = "juridico") -> str:
+
+# ════════════════════════════════════════════════════════════
+# ✅ NOVA FUNÇÃO PRINCIPAL — RESUMO VIA PDF NATIVO
+# Tenta enviar o PDF diretamente ao Gemini (melhor qualidade,
+# lê todas as páginas e anexos). Se falhar, usa fallback texto.
+# ════════════════════════════════════════════════════════════
+def gerar_resumo_ia(texto: str, setor: str = "juridico",
+                    pdf_bytes: Optional[bytes] = None) -> str:
     if not client or not MODELO_ATIVO:
         return "❌ Serviço de IA temporariamente indisponível."
+
     config_setor = _get_config_setor(setor)
-    tamanho      = len(texto)
-    logger.info(f"📄 Iniciando análise: {tamanho} chars | setor={setor}")
+    logger.info(f"📄 Iniciando análise | setor={setor} | pdf_nativo={'sim' if pdf_bytes else 'não'}")
+
+    # ── MODO PDF NATIVO (preferencial) ───────────────────────────────────────
+    # Envia o PDF diretamente para o Gemini sem extrair texto.
+    # Isso permite que o modelo leia TODAS as páginas, incluindo
+    # anexos, tabelas e planilhas que os extratores não capturam.
+    if pdf_bytes:
+        try:
+            prompt_resumo = config_setor["resumo"]
+            # Remove o placeholder {texto} se existir (não usado no modo PDF nativo)
+            if "CONTRATO A ANALISAR:\n{texto}" in prompt_resumo:
+                prompt_resumo = prompt_resumo.replace(
+                    "CONTRATO A ANALISAR:\n{texto}",
+                    "O contrato completo está anexado acima como arquivo PDF. "
+                    "Leia TODAS as páginas, incluindo os anexos nas páginas finais."
+                )
+            elif "{texto}" in prompt_resumo:
+                prompt_resumo = prompt_resumo.replace(
+                    "{texto}",
+                    "[O contrato está anexado como PDF acima. Leia todas as páginas.]"
+                )
+
+            logger.info(f"📎 Enviando PDF nativo ao Gemini ({len(pdf_bytes)//1024}KB)...")
+            resultado = _chamar_gemini_pdf(pdf_bytes, prompt_resumo, f"PDF nativo [{setor}]")
+
+            if resultado and len(resultado.strip()) > 200:
+                logger.info(f"✅ Análise PDF nativa concluída: {len(resultado)} chars")
+                return resultado
+            else:
+                logger.warning("⚠️ PDF nativo retornou resultado insuficiente — usando fallback texto")
+        except Exception as e:
+            logger.warning(f"⚠️ PDF nativo falhou ({str(e)[:200]}) — usando fallback texto")
+
+    # ── FALLBACK: MODO TEXTO (extração local) ────────────────────────────────
+    # Usado quando: PDF nativo falhou, ou pdf_bytes não foi fornecido.
+    tamanho = len(texto)
+    logger.info(f"📄 Fallback texto: {tamanho} chars")
+
     try:
         if tamanho <= LIMITE_DIRETO:
             logger.info(f"📄 Análise direta (1 chamada): {tamanho} chars")
-            prompt    = config_setor["resumo"].format(texto=texto)
+            # Monta o prompt com o texto extraído
+            prompt_resumo = config_setor["resumo"]
+            if "{texto}" in prompt_resumo:
+                prompt = prompt_resumo.format(texto=texto)
+            else:
+                prompt = prompt_resumo + f"\n\nCONTRATO A ANALISAR:\n{texto}"
             resultado = _chamar_gemini(prompt, f"análise direta [{tamanho} chars]")
             if not resultado:
                 return "❌ Erro: a IA retornou uma resposta vazia. Tente novamente."
             logger.info(f"✅ Análise direta concluída: {len(resultado)} chars")
             return resultado
+
         chunks = _dividir_em_chunks(texto)
         logger.info(f"📚 Análise em chunks: {tamanho} chars → {len(chunks)} partes")
         pre_analises = []
@@ -1155,6 +1274,7 @@ def gerar_resumo_ia(texto: str, setor: str = "juridico") -> str:
     except Exception as e:
         logger.error(f"❌ gerar_resumo_ia: {e}")
         return f"❌ Erro ao processar contrato: {str(e)[:500]}"
+
 
 def gerar_resposta_ia(pergunta: str, contexto: str, setor: str = "juridico") -> str:
     if not client or not MODELO_ATIVO:
@@ -1198,24 +1318,46 @@ Partes relevantes:"""
         logger.error(f"❌ gerar_resposta_ia: {e}")
         return f"❌ Erro ao processar pergunta: {str(e)[:500]}"
 
+
 # ════════════════════════════════════════════════════════════
-# BACKGROUND JOB
+# ✅ BACKGROUND JOB — agora passa pdf_bytes para gerar_resumo_ia
 # ════════════════════════════════════════════════════════════
 def _processar_em_background(job_id: str, conteudo: bytes, filename: str,
                               setor: str, user_id: int):
     db = None
     try:
-        logger.info(f"[job {job_id[:8]}] Extraindo texto do PDF...")
+        logger.info(f"[job {job_id[:8]}] Extraindo texto do PDF (para armazenamento e chat)...")
         texto, erro = extrair_texto_pdf_seguro(conteudo)
         if erro:
-            raise Exception(erro)
-        logger.info(f"[job {job_id[:8]}] {len(texto)} chars extraídos — analisando [{setor}]")
-        resumo = gerar_resumo_ia(texto, setor)
+            # Se não conseguir extrair texto mas tiver o PDF,
+            # ainda tenta analisar via PDF nativo
+            logger.warning(f"[job {job_id[:8]}] Extração texto falhou: {erro}")
+            texto = ""
+
+        logger.info(f"[job {job_id[:8]}] {len(texto)} chars extraídos — analisando [{setor}] via PDF nativo")
+
+        # ✅ Passa o PDF nativo (conteudo) para gerar_resumo_ia
+        resumo = gerar_resumo_ia(texto=texto, setor=setor, pdf_bytes=conteudo)
+
         if not resumo or resumo.startswith("❌"):
+            # Se não tiver texto E o resumo falhou, aí sim é erro fatal
+            if not texto:
+                raise Exception(erro or resumo or "Não foi possível processar o PDF")
             raise Exception(resumo or "Resposta vazia da IA")
+
         config_setor = _get_config_setor(setor)
         db = SessionLocal()
-        novo = Contract(nome=filename, texto=texto, resumo=resumo, setor=setor, user_id=user_id)
+
+        # Armazena o texto extraído (para o chat/perguntas posteriores)
+        # Se a extração falhou, armazena string vazia — o chat não funcionará,
+        # mas o resumo foi gerado corretamente via PDF nativo
+        novo = Contract(
+            nome=filename,
+            texto=texto or f"[Texto não extraível — análise feita via PDF nativo | {filename}]",
+            resumo=resumo,
+            setor=setor,
+            user_id=user_id
+        )
         db.add(novo)
         db.commit()
         db.refresh(novo)
@@ -1240,6 +1382,7 @@ def _processar_em_background(job_id: str, conteudo: bytes, filename: str,
             _limpar_jobs_antigos()
         except Exception:
             pass
+
 
 # ════════════════════════════════════════════════════════════
 # PYDANTIC MODELS
@@ -1487,9 +1630,6 @@ async def definir_permissoes_viewer(viewer_id: int, body: SetUserVisibilityBody,
         invalidos      = set(body.target_ids) - ids_existentes
         if invalidos:
             raise HTTPException(status_code=400, detail=f"Usuários não encontrados: {list(invalidos)}")
-
-    # ── VALIDAÇÃO DINÂMICA DE SLUGS ──────────────────────────────────────────
-    # Obtém todos os roles do banco e converte para slugs válidos (sem hardcode)
     if body.sector_slugs:
         todos_roles      = db.query(Role).all()
         slugs_validos    = {_slug_setor(r.name) for r in todos_roles
@@ -1498,8 +1638,6 @@ async def definir_permissoes_viewer(viewer_id: int, body: SetUserVisibilityBody,
         if invalidos_setor:
             raise HTTPException(status_code=400,
                                 detail=f"Setores inválidos: {list(invalidos_setor)}")
-    # ─────────────────────────────────────────────────────────────────────────
-
     db.query(UserVisibilityPermission).filter(
         UserVisibilityPermission.viewer_id == viewer_id
     ).delete(synchronize_session=False)
@@ -1560,13 +1698,16 @@ async def upload_contrato(
     if not file.filename.lower().endswith('.pdf'):
         raise HTTPException(status_code=400, detail="Apenas arquivos PDF são permitidos")
 
-    # Aceita qualquer setor — sem validação hardcoded
     conteudo = await file.read()
     if len(conteudo) > 50 * 1024 * 1024:
         raise HTTPException(status_code=400,
                             detail="Arquivo muito grande. O tamanho máximo permitido é 50MB.")
-    _, erro_pdf = extrair_texto_pdf_seguro(conteudo)
-    if erro_pdf:
+
+    # Valida que é um PDF válido (tenta extração rápida)
+    # Não falha mais se a extração de texto for ruim — o PDF nativo cobre isso
+    texto_teste, erro_pdf = extrair_texto_pdf_seguro(conteudo)
+    if erro_pdf and len(conteudo) < 1000:
+        # Só rejeita se o arquivo for muito pequeno E não extraível (provavelmente corrompido)
         raise HTTPException(status_code=400, detail=erro_pdf)
 
     job_id = _criar_job(current_user.id)
@@ -1772,7 +1913,6 @@ async def perguntar_contrato(
         if not perm_user and not perm_setor:
             raise HTTPException(status_code=403, detail="Acesso negado a este contrato.")
 
-    # setor aceito sem validação hardcoded — _get_config_setor gera prompt dinâmico se necessário
     db.add(Message(contrato_id=contrato.id, autor="user", texto=pergunta))
     db.commit()
     resposta_ia = gerar_resposta_ia(pergunta=pergunta, contexto=contrato.texto, setor=setor)
@@ -1795,10 +1935,11 @@ async def perguntar_contrato(
 async def root():
     return {
         "sistema":       "Analisador de Contratos IA - Opersan",
-        "versao":        "4.7.0",
+        "versao":        "4.8.0",
         "status":        "online",
         "ia_disponivel": MODELO_ATIVO is not None,
         "modelo_ia":     MODELO_ATIVO,
+        "modo_analise":  "PDF nativo (com fallback texto)",
         "chunk_config": {
             "limite_direto": LIMITE_DIRETO,
             "chunk_size":    CHUNK_SIZE,
@@ -1833,6 +1974,6 @@ async def health_check():
 if __name__ == "__main__":
     import uvicorn
     logger.info("=" * 60)
-    logger.info("🚀 OPERSAN v4.7 — Setores dinâmicos | prompts gerados automaticamente")
+    logger.info("🚀 OPERSAN v4.8 — PDF nativo | Setores dinâmicos | Stop sequences")
     logger.info("=" * 60)
     uvicorn.run(app, host=HOST, port=PORT)
