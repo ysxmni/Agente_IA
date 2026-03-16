@@ -274,7 +274,7 @@ PERGUNTA:
 Responda citando a cláusula ou item exato de cada informação."""
     },
 
-    "gestaocontratos": {
+    "gestaodecontratos": {
         "nome": "Gestão de Contratos",
         "icon": "folder-kanban",
         "cor": "#f59e0b",
