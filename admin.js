@@ -1,11 +1,11 @@
 // ════════════════════════════════════════════════════════════════════════════
-//  OPERSAN — admin.js  v2.0  (setores dinâmicos — zero Lucide)
+//  OPERSAN — admin.js  v2.1  (toggle admin + setores dinâmicos)
 //
-//  MUDANÇAS v2.0:
-//  - SETOR_NOMES hardcoded removido → substituído por _nomePorSlug()
-//  - renderizarSetoresGrid() agora usa allRoles (carregado da API)
-//  - atualizarResumoPerm() usa _nomePorSlug() em vez de SETOR_NOMES[s]
-//  - Toda a lógica de setores é 100% dinâmica
+//  MUDANÇAS v2.1:
+//  - Coluna "Admin" na tabela de usuários com toggle inline
+//  - Modal de edição: toggle admin com aviso de segurança
+//  - toggleAdmin() — chama PUT /admin/users/:id com { role: "admin"|"user" }
+//  - Proteções: último admin, conta própria, confirmação antes de promover
 // ════════════════════════════════════════════════════════════════════════════
 
 const API   = "https://agente-ia-62sa.onrender.com";
@@ -23,6 +23,8 @@ const SVG = {
     warning:  `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`,
     check:    `<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`,
     chevDown: `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>`,
+    shield:   `<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>`,
+    shieldOff:`<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19.69 14a6.9 6.9 0 0 0 .31-2V5l-8-3-3.16 1.18"/><path d="M4.73 4.73L4 5v7c0 6 8 10 8 10a20.29 20.29 0 0 0 5.62-4.38"/><line x1="1" y1="1" x2="23" y2="23"/></svg>`,
 };
 
 // ─── ESTADO ──────────────────────────────────────────────────────────────────
@@ -31,6 +33,7 @@ let allRoles            = [];
 let selectedSectorIds   = [];
 let editSectorIds       = [];
 let itemToDelete        = { id: null, type: null };
+let _meuUserId          = null; // id do admin logado
 
 let permViewerSelecionado   = null;
 let permTargetsSelecionados = [];
@@ -38,13 +41,9 @@ let permSetoresSelecionados = [];
 let _permCache = { permissoes: [], users: [] };
 
 // ════════════════════════════════════════════════════════════════════════════
-//  HELPERS DE SETOR — DINÂMICOS  (substituem SETOR_NOMES hardcoded)
+//  HELPERS DE SETOR — DINÂMICOS
 // ════════════════════════════════════════════════════════════════════════════
 
-/**
- * Converte um nome de setor em slug sem acentos/espaços.
- * "Gestão de Contratos" → "gestaocontratos"
- */
 function _slugSetor(nome) {
     return (nome || "")
         .toLowerCase()
@@ -53,26 +52,16 @@ function _slugSetor(nome) {
         .replace(/[^a-z0-9]/g, "");
 }
 
-/**
- * Dado um slug, retorna o nome legível pesquisando em allRoles.
- * Substitui o antigo SETOR_NOMES[slug].
- */
 function _nomePorSlug(slug) {
     const role = allRoles.find(r => _slugSetor(r.name) === slug);
     return role ? role.name : slug;
 }
 
-/**
- * Paleta de cores para setores (índice circular).
- */
 const _SETOR_CORES = [
     "#3b82f6", "#10b981", "#f59e0b",
     "#8b5cf6", "#06b6d4", "#ec4899", "#f97316", "#14b8a6"
 ];
 
-/**
- * Emoji/ícone automático baseado no nome do setor.
- */
 function _emojiSetor(nome) {
     const s = _slugSetor(nome);
     if (s.includes("jurid") || s.includes("legal") || s.includes("lei") || s.includes("direito")) return "⚖️";
@@ -84,20 +73,12 @@ function _emojiSetor(nome) {
     return "🏢";
 }
 
-/**
- * Retorna cor do setor pelo seu índice em allRoles (excluindo admin).
- */
 function _corSetor(nomeSetor) {
     const setores = allRoles.filter(r => r.name.toLowerCase() !== "admin");
     const idx = setores.findIndex(r => _slugSetor(r.name) === _slugSetor(nomeSetor));
     return _SETOR_CORES[(idx >= 0 ? idx : 0) % _SETOR_CORES.length];
 }
 
-/**
- * Retorna a classe CSS de cor para o badge do setor.
- * Mantém compatibilidade com o CSS existente para setores conhecidos,
- * e para novos setores usa inline style via data-cor.
- */
 function _classeCorSetor(nome) {
     const slug = _slugSetor(nome);
     if (slug.includes("juridic"))                              return "juridico";
@@ -107,7 +88,68 @@ function _classeCorSetor(nome) {
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-//  DROPDOWN BASE — painel portal no <body>
+//  TOGGLE ADMIN — lógica principal
+// ════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Alterna o status de admin de um usuário.
+ * @param {number} userId  - ID do usuário
+ * @param {boolean} tornarAdmin - true = promover, false = rebaixar
+ * @param {number} totalAdmins - total atual de admins (proteção último admin)
+ */
+async function toggleAdmin(userId, tornarAdmin, totalAdmins) {
+    const user = allUsers.find(u => u.id === userId);
+    if (!user) return;
+
+    const nome = formatarNome(user.username);
+
+    // Proteção: não pode rebaixar o último admin
+    if (!tornarAdmin && totalAdmins <= 1) {
+        showToast("Não é possível remover o último administrador.", "error");
+        return;
+    }
+
+    // Proteção: não pode se auto-rebaixar
+    if (!tornarAdmin && userId === _meuUserId) {
+        showToast("Você não pode remover sua própria permissão de administrador.", "error");
+        return;
+    }
+
+    // Confirmação antes de alterar
+    const acao   = tornarAdmin ? `promover "${nome}" a Administrador` : `rebaixar "${nome}" para Usuário comum`;
+    const aviso  = tornarAdmin
+        ? `${nome} terá acesso completo ao painel de administração.`
+        : `${nome} perderá o acesso ao painel de administração.`;
+
+    if (!confirm(`Deseja ${acao}?\n\n${aviso}`)) return;
+
+    try {
+        const res = await fetch(`${API}/admin/users/${userId}`, {
+            method:  "PUT",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+            body:    JSON.stringify({ role: tornarAdmin ? "admin" : "user" }),
+            signal:  AbortSignal.timeout(10000)
+        });
+        if (res.status === 401) { redirecionarLogin(); return; }
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err.detail || `Erro ${res.status}`);
+        }
+        await carregarDados();
+        showToast(
+            tornarAdmin
+                ? `✅ ${nome} agora é Administrador.`
+                : `✅ ${nome} agora é Usuário comum.`,
+            "success"
+        );
+    } catch (err) {
+        console.error("❌ toggleAdmin:", err);
+        showToast(err.message || "Erro ao alterar permissão.", "error");
+    }
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+//  DROPDOWN BASE
 // ════════════════════════════════════════════════════════════════════════════
 
 function _criarBaseDropdown(containerId) {
@@ -353,6 +395,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
         if (!isAdmin) { window.location.href = "index.html"; return; }
 
+        _meuUserId = me.id; // guarda para proteções de auto-rebaixamento
         localStorage.setItem("userRole", "admin");
         configurarPerfilAdmin(me);
 
@@ -437,7 +480,9 @@ async function carregarDados() {
 
 function renderizarStats() {
     const setores = allRoles.filter(r => r.name.toLowerCase() !== "admin");
-    const admins  = allUsers.filter(u => u.roles.some(r => r.name.toLowerCase() === "admin"));
+    const admins  = allUsers.filter(u =>
+        u.role === "admin" || u.roles.some(r => r.name.toLowerCase() === "admin")
+    );
     const el = (id, val) => { const e = document.getElementById(id); if (e) e.textContent = val; };
     el("total-users",   allUsers.length);
     el("total-sectors", setores.length);
@@ -454,7 +499,9 @@ function renderizarPreviewUsuarios() {
     const container = document.getElementById("preview-users-list");
     const counter   = document.getElementById("preview-users-count");
     if (!container) return;
-    const naoAdmin = allUsers.filter(u => !u.roles.some(r => r.name.toLowerCase() === "admin"));
+    const naoAdmin = allUsers.filter(u =>
+        u.role !== "admin" && !u.roles.some(r => r.name.toLowerCase() === "admin")
+    );
     if (counter) counter.textContent = naoAdmin.length;
     if (!naoAdmin.length) { container.innerHTML = '<p class="preview-empty">Nenhum usuário cadastrado ainda.</p>'; return; }
     container.innerHTML = naoAdmin.map(u => {
@@ -502,30 +549,77 @@ function renderizarTabelaUsuarios(filtro = "") {
     }
 
     if (!lista.length) {
-        tbody.innerHTML = `<tr><td colspan="4" class="preview-empty">${filtro ? "Nenhum resultado." : "Nenhum usuário."}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="5" class="preview-empty">${filtro ? "Nenhum resultado." : "Nenhum usuário."}</td></tr>`;
         return;
     }
 
+    // Total de admins para proteção do último admin
+    const totalAdmins = allUsers.filter(u =>
+        u.role === "admin" || u.roles.some(r => r.name.toLowerCase() === "admin")
+    ).length;
+
     lista.forEach(user => {
-        const tr = document.createElement("tr");
-        const badgesRole = user.roles.map(r => {
-            const nome = r.name.toLowerCase();
-            let classe = "role-badge ";
-            if (nome === "admin")                                  classe += "role-admin";
-            else if (nome === "jurídico" || nome === "juridico")   classe += "role-user setor-juridico";
-            else if (nome === "suprimentos")                       classe += "role-user setor-suprimentos";
-            else if (nome.includes("gest"))                        classe += "role-user setor-gestao";
-            else                                                   classe += "role-user";
-            return `<span class="${classe}">${r.name}</span>`;
-        }).join(" ");
+        const tr     = document.createElement("tr");
+        const eAdmin = user.role === "admin" || user.roles.some(r => r.name.toLowerCase() === "admin");
+
+        // Badges de setor (exclui role "admin" da exibição)
+        const badgesSetor = user.roles
+            .filter(r => r.name.toLowerCase() !== "admin")
+            .map(r => {
+                const n = r.name.toLowerCase();
+                let cls = "role-badge ";
+                if (n === "jurídico" || n === "juridico") cls += "role-user setor-juridico";
+                else if (n === "suprimentos")              cls += "role-user setor-suprimentos";
+                else if (n.includes("gest"))               cls += "role-user setor-gestao";
+                else                                       cls += "role-user";
+                return `<span class="${cls}">${r.name}</span>`;
+            }).join(" ") || `<span style="color:var(--text-secondary);font-size:.78rem">—</span>`;
+
+        // Regras de proteção para o toggle
+        const ehContaPropria  = user.id === _meuUserId;
+        const ultimoAdmin     = eAdmin && totalAdmins <= 1;
+        const podeRebaixar    = eAdmin && !ehContaPropria && !ultimoAdmin;
+        const podePromover    = !eAdmin;
+        const togglePermitido = podeRebaixar || podePromover;
+
+        const tooltip = ehContaPropria
+            ? "Você não pode alterar sua própria conta aqui"
+            : ultimoAdmin
+            ? "Último admin — não é possível remover"
+            : eAdmin ? "Clique para remover permissão de Admin" : "Clique para tornar Admin";
+
         tr.innerHTML = `
             <td>${user.username}</td>
             <td>${formatarNome(user.username)}</td>
-            <td>${badgesRole}</td>
+            <td>${badgesSetor}</td>
+            <td>
+                <label class="toggle-admin-label"
+                       title="${tooltip}"
+                       style="display:inline-flex;align-items:center;gap:.5rem;
+                              cursor:${togglePermitido ? "pointer" : "not-allowed"};
+                              opacity:${ehContaPropria || ultimoAdmin ? ".5" : "1"};
+                              user-select:none">
+                    <div class="toggle-switch" style="pointer-events:none">
+                        <input type="checkbox" ${eAdmin ? "checked" : ""} disabled>
+                        <div class="toggle-track admin-track"><div class="toggle-thumb"></div></div>
+                    </div>
+                    <span style="font-size:.78rem;font-weight:600;
+                                 color:${eAdmin ? "var(--purple)" : "var(--text-secondary)"}">
+                        ${eAdmin ? "Admin" : "Usuário"}
+                    </span>
+                </label>
+            </td>
             <td><div class="actions-cell">
                 <button class="btn-edit"   onclick="abrirEditarUsuario(${user.id})">${SVG.edit} Editar</button>
                 <button class="btn-delete" onclick="confirmarExclusao(${user.id}, 'user')">${SVG.trash} Excluir</button>
             </div></td>`;
+
+        if (togglePermitido) {
+            tr.querySelector(".toggle-admin-label").addEventListener("click", () => {
+                toggleAdmin(user.id, !eAdmin, totalAdmins);
+            });
+        }
+
         tbody.appendChild(tr);
     });
 }
@@ -618,7 +712,9 @@ function renderizarListaViewers(filtro = "", data = null) {
     if (!container) return;
     if (data) _permCache = data;
 
-    let usuarios = allUsers.filter(u => !u.roles.some(r => r.name.toLowerCase() === "admin"));
+    let usuarios = allUsers.filter(u =>
+        u.role !== "admin" && !u.roles.some(r => r.name.toLowerCase() === "admin")
+    );
     if (filtro) {
         const t = filtro.toLowerCase();
         usuarios = usuarios.filter(u =>
@@ -714,15 +810,10 @@ function renderizarPainelDireito(viewerId) {
     atualizarResumoPerm();
 }
 
-// ════════════════════════════════════════════════════════════════════════════
-//  renderizarSetoresGrid — DINÂMICO (usa allRoles, não hardcoded)
-// ════════════════════════════════════════════════════════════════════════════
-
 function renderizarSetoresGrid() {
     const grid = document.getElementById("perm-setores-grid");
     if (!grid) return;
 
-    // Obtém todos os setores reais (exclui "admin")
     const setores = allRoles
         .filter(r => r.name.toLowerCase() !== "admin")
         .map((r, i) => ({
@@ -762,6 +853,7 @@ function renderizarListaTargets(filtro = "") {
 
     let possiveis = allUsers.filter(u =>
         u.id !== permViewerSelecionado &&
+        u.role !== "admin" &&
         !u.roles.some(r => r.name.toLowerCase() === "admin")
     );
 
@@ -826,7 +918,6 @@ function toggleTarget(targetId) {
     atualizarResumoPerm();
 }
 
-// ── atualizarResumoPerm — usa _nomePorSlug() (dinâmico) ─────────────────────
 function atualizarResumoPerm() {
     const resumo = document.getElementById("perm-resumo");
     if (!resumo) return;
@@ -838,7 +929,6 @@ function atualizarResumoPerm() {
     }
     const partes = [];
     if (nS > 0) {
-        // _nomePorSlug busca em allRoles — funciona para qualquer setor criado
         const nomesSetores = permSetoresSelecionados.map(s => _nomePorSlug(s)).join(", ");
         partes.push(`<strong style="color:var(--amber)">${nS} setor${nS > 1 ? "es" : ""}</strong> (${nomesSetores})`);
     }
@@ -971,9 +1061,19 @@ function configurarFormularios() {
         const btn = e.target.querySelector(".btn-submit");
         if (btn) btn.disabled = true;
         const userId  = document.getElementById("edit-user-id").value;
-        const payload = { username: document.getElementById("edit-user-email").value.trim(), role_ids: [...editSectorIds] };
+        const payload = {
+            username: document.getElementById("edit-user-email").value.trim(),
+            role_ids: [...editSectorIds]
+        };
         const senha = document.getElementById("edit-user-password").value;
         if (senha) payload.password = senha;
+
+        // Se o toggle de admin do modal estiver presente, inclui o role
+        const adminToggleEl = document.getElementById("edit-admin-toggle");
+        if (adminToggleEl) {
+            payload.role = adminToggleEl.checked ? "admin" : "user";
+        }
+
         try {
             const res = await fetch(`${API}/admin/users/${userId}`, {
                 method: "PUT", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
@@ -1048,11 +1148,116 @@ function configurarFormularios() {
 function abrirEditarUsuario(userId) {
     const user = allUsers.find(u => u.id === userId);
     if (!user) return;
+
+    const eAdmin = user.role === "admin" || user.roles.some(r => r.name.toLowerCase() === "admin");
     editSectorIds = user.roles.filter(r => r.name.toLowerCase() !== "admin").map(r => r.id);
+
     document.getElementById("edit-user-id").value       = user.id;
     document.getElementById("edit-user-email").value    = user.username;
     document.getElementById("edit-user-name").value     = formatarNome(user.username);
     document.getElementById("edit-user-password").value = "";
+
+    // ── Proteções ────────────────────────────────────────────────────────────
+    const totalAdmins    = allUsers.filter(u =>
+        u.role === "admin" || u.roles.some(r => r.name.toLowerCase() === "admin")
+    ).length;
+    const ehContaPropria = userId === _meuUserId;
+    const ultimoAdmin    = eAdmin && totalAdmins <= 1;
+    const desabilitado   = ehContaPropria || ultimoAdmin;
+    const avisoTexto     = ehContaPropria
+        ? "Você não pode alterar sua própria conta."
+        : ultimoAdmin
+        ? "Não é possível remover o único administrador."
+        : "";
+
+    // ── Injeta bloco de admin no modal se não existir (compatível com HTML antigo) ──
+    if (!document.getElementById("edit-admin-wrap")) {
+        // Insere estilos necessários se ainda não existirem
+        if (!document.getElementById("admin-toggle-styles")) {
+            const style = document.createElement("style");
+            style.id = "admin-toggle-styles";
+            style.textContent = `
+                .edit-admin-row {
+                    display:flex; align-items:center; justify-content:space-between;
+                    padding:.65rem .85rem;
+                    background:var(--input-bg,#1a253d);
+                    border:1px solid rgba(255,255,255,0.08);
+                    border-radius:8px;
+                }
+                .edit-admin-row-left  { display:flex; flex-direction:column; gap:.15rem; }
+                .edit-admin-row-title { font-size:.85rem; font-weight:600; color:#fff; }
+                .edit-admin-row-desc  { font-size:.73rem; color:#94a3b8; }
+                .edit-admin-aviso {
+                    display:none; font-size:.75rem; color:#f59e0b;
+                    margin-top:.35rem; padding:.35rem .65rem;
+                    background:rgba(245,158,11,0.08);
+                    border-radius:6px; border:1px solid rgba(245,158,11,0.2);
+                }
+                #edit-admin-toggle:checked ~ .toggle-track {
+                    background-color:rgba(139,92,246,0.15)!important;
+                    border-color:#8b5cf6!important;
+                }
+                #edit-admin-toggle:checked ~ .toggle-track .toggle-thumb {
+                    background-color:#8b5cf6!important;
+                }
+            `;
+            document.head.appendChild(style);
+        }
+
+        // Encontra o campo de setores de acesso e injeta o bloco depois dele
+        const setoresField = document.getElementById("edit-sectors-list")?.closest(".field-group");
+        const modalActions = document.querySelector("#edit-user-form .modal-actions");
+        const insertBefore = modalActions || null;
+        const form         = document.getElementById("edit-user-form");
+
+        if (form) {
+            const wrap = document.createElement("div");
+            wrap.className = "field-group";
+            wrap.id        = "edit-admin-wrap";
+            wrap.innerHTML = `
+                <label>Permissão de Administrador</label>
+                <div class="edit-admin-row">
+                    <div class="edit-admin-row-left">
+                        <span class="edit-admin-row-title" id="edit-admin-label">Usuário comum</span>
+                        <span class="edit-admin-row-desc">Acesso ao painel de administração</span>
+                    </div>
+                    <label class="toggle-switch" style="cursor:pointer;flex-shrink:0">
+                        <input type="checkbox" id="edit-admin-toggle">
+                        <div class="toggle-track"><div class="toggle-thumb"></div></div>
+                    </label>
+                </div>
+                <span class="edit-admin-aviso" id="edit-admin-aviso"></span>`;
+
+            if (insertBefore) {
+                form.insertBefore(wrap, insertBefore);
+            } else {
+                form.appendChild(wrap);
+            }
+        }
+    }
+
+    // ── Configura o toggle ────────────────────────────────────────────────────
+    const adminToggle = document.getElementById("edit-admin-toggle");
+    const adminLabel  = document.getElementById("edit-admin-label");
+    const adminWrap   = document.getElementById("edit-admin-wrap");
+    const adminAviso  = document.getElementById("edit-admin-aviso");
+
+    if (adminToggle) {
+        adminToggle.checked  = eAdmin;
+        adminToggle.disabled = desabilitado;
+
+        if (adminLabel) adminLabel.textContent = eAdmin ? "Administrador" : "Usuário comum";
+        if (adminWrap)  adminWrap.style.opacity = desabilitado ? "0.5" : "1";
+        if (adminAviso) {
+            adminAviso.textContent = avisoTexto;
+            adminAviso.style.display = desabilitado ? "block" : "none";
+        }
+
+        adminToggle.onchange = () => {
+            if (adminLabel) adminLabel.textContent = adminToggle.checked ? "Administrador" : "Usuário comum";
+        };
+    }
+
     const setores = allRoles.filter(r => r.name.toLowerCase() !== "admin");
     criarDropdownSetores("edit-sectors-list", setores, editSectorIds);
     document.getElementById("edit-user-modal").classList.remove("hidden");
@@ -1061,6 +1266,8 @@ function abrirEditarUsuario(userId) {
 function closeEditUserModal() {
     document.getElementById("edit-user-modal").classList.add("hidden");
     document.getElementById("edit-sectors-list")?._destroy?.();
+    // Remove o bloco injetado para que seja recriado limpo na próxima abertura
+    document.getElementById("edit-admin-wrap")?.remove();
     editSectorIds = [];
 }
 
