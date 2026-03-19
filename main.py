@@ -1392,6 +1392,7 @@ class UserUpdate(BaseModel):
     username: Optional[str]       = None
     password: Optional[str]       = None
     role_ids: Optional[List[int]] = None
+    role:     Optional[str]       = None   # "admin" | "user"
 
 class RoleUpdate(BaseModel):
     name:        Optional[str] = None
@@ -1472,12 +1473,45 @@ def update_user(user_id: int, user_data: UserUpdate, db: Session = Depends(get_d
     db_user = db.query(User).filter(User.id == user_id).first()
     if not db_user:
         raise HTTPException(status_code=404, detail="Usuário não encontrado")
+
     if user_data.username:
         db_user.username = user_data.username
+
     if user_data.password:
         db_user.hashed_password = hash_password(user_data.password)
+
+    # ── TOGGLE ADMIN v4.9 ───────────────────────────────────────────────────
+    # Atualiza o campo role e sincroniza o role "Admin" na tabela de roles
+    if user_data.role is not None:
+        novo_role = user_data.role.lower()
+        if novo_role not in ("admin", "user"):
+            raise HTTPException(status_code=400, detail="Role deve ser 'admin' ou 'user'")
+
+        # Impede que o admin remova sua própria permissão de admin
+        if novo_role != "admin" and db_user.id == current_user.id:
+            raise HTTPException(status_code=400,
+                                detail="Você não pode remover sua própria permissão de administrador.")
+
+        db_user.role = novo_role
+
+        # Sincroniza o role "Admin" no relacionamento user_roles
+        admin_role = db.query(Role).filter(Role.name.ilike("admin")).first()
+        if admin_role:
+            tem_role_admin = any(r.id == admin_role.id for r in db_user.roles)
+            if novo_role == "admin" and not tem_role_admin:
+                db_user.roles.append(admin_role)
+            elif novo_role != "admin" and tem_role_admin:
+                db_user.roles = [r for r in db_user.roles if r.id != admin_role.id]
+
     if user_data.role_ids is not None:
-        db_user.roles = db.query(Role).filter(Role.id.in_(user_data.role_ids)).all()
+        roles_novos = db.query(Role).filter(Role.id.in_(user_data.role_ids)).all()
+        # Se o usuário é admin, garante que o role Admin permanece na lista
+        if db_user.role == "admin":
+            admin_role = db.query(Role).filter(Role.name.ilike("admin")).first()
+            if admin_role and admin_role not in roles_novos:
+                roles_novos.append(admin_role)
+        db_user.roles = roles_novos
+
     db.commit(); db.refresh(db_user)
     return db_user
 
