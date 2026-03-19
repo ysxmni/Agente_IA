@@ -36,7 +36,7 @@ import datetime
 from typing import Annotated
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from google import genai
-from google.genai import types  # ✅ necessário para GenerateContentConfig e Part
+from google.genai import types
 from dotenv import load_dotenv
 import os
 import json
@@ -60,7 +60,7 @@ class UserLogin(BaseModel):
 app = FastAPI(
     title="Analisador de Contratos IA - Sistema Opersan",
     description="Sistema de análise de contratos com IA e gestão multi-setorial",
-    version="4.8.0"
+    version="4.9.0"
 )
 
 app.add_middleware(
@@ -112,7 +112,7 @@ except Exception as e:
     MODELO_ATIVO = None
 
 # ════════════════════════════════════════════════════════════
-# PROMPTS ESPECIALIZADOS POR SETOR (3 fixos + geração dinâmica)
+# PROMPTS ESPECIALIZADOS POR SETOR
 # ════════════════════════════════════════════════════════════
 PROMPTS_SETORES = {
     "juridico": {
@@ -278,9 +278,6 @@ Responda citando a cláusula ou item exato de cada informação."""
         "nome": "Gestão de Contratos",
         "icon": "folder-kanban",
         "cor": "#f59e0b",
-        # ✅ Prompt de resumo — usado quando o PDF é enviado nativamente ao Gemini
-        # O marcador {texto} NÃO é usado neste prompt pois o PDF é enviado como arquivo
-        # Para o modo texto (fallback), o {texto} é inserido automaticamente no final
         "resumo": """Você é um especialista em gestão operacional de contratos.
 
 ════════════════════════════════════════════
@@ -486,7 +483,6 @@ def _get_config_setor(setor_slug: str) -> dict:
     """
     Retorna a configuração do setor. Se não existir em PROMPTS_SETORES,
     gera um prompt genérico mas especializado com o nome do setor.
-    NUNCA retorna None — garante que qualquer setor criado dinamicamente funciona.
     """
     if setor_slug in PROMPTS_SETORES:
         return PROMPTS_SETORES[setor_slug]
@@ -668,7 +664,7 @@ class AnalysisJob(Base):
     created_at  = Column(Float,   default=time.time)
 
 Base.metadata.create_all(bind=engine)
-logger.info("✅ Tabelas verificadas (incluindo analysis_jobs)")
+logger.info("✅ Tabelas verificadas")
 
 def migrar_banco():
     if not DATABASE_URL.startswith("sqlite"):
@@ -872,10 +868,15 @@ def is_admin_user(user: User) -> bool:
             any(r.name.lower() == "admin" for r in user.roles))
 
 def get_setores_permitidos(user: User, db: Session) -> List[str]:
+    """
+    Retorna lista de slugs de setores que o usuário pode acessar.
+    CORRIGIDO v4.9: garante que usuário sempre vê seu próprio setor.
+    """
     if is_admin_user(user):
         todos_roles = db.query(Role).filter(Role.name.isnot(None)).all()
         return [_slug_setor(r.name) for r in todos_roles
                 if r.name.lower() not in ("admin",)]
+
     setores = []
     for role in user.roles:
         if role.name.lower() == "admin":
@@ -883,10 +884,18 @@ def get_setores_permitidos(user: User, db: Session) -> List[str]:
         slug = _slug_setor(role.name)
         if slug and slug not in setores:
             setores.append(slug)
-    return setores or [_slug_setor(user.roles[0].name) if user.roles else "juridico"]
+
+    # ── NOVO: fallback pelo campo role (string) do usuário ──────────────
+    # Garante que se o user.role não foi mapeado via roles[], ainda funciona
+    if not setores and user.role and user.role.lower() not in ("admin", "user"):
+        slug_role = _slug_setor(user.role)
+        if slug_role:
+            setores.append(slug_role)
+
+    return setores or ["juridico"]
 
 # ════════════════════════════════════════════════════════════
-# EXTRAÇÃO DE PDF (mantida como fallback para o chat/perguntas)
+# EXTRAÇÃO DE PDF
 # ════════════════════════════════════════════════════════════
 def _extrair_com_pymupdf(conteudo: bytes) -> str:
     doc = fitz.open(stream=conteudo, filetype="pdf")
@@ -973,9 +982,6 @@ GEMINI_CONFIG = types.GenerateContentConfig(
     stop_sequences=["═══FIM═══"]
 )
 
-# ════════════════════════════════════════════════════════════
-# CHAMADA GEMINI — TEXTO (para chunks e perguntas)
-# ════════════════════════════════════════════════════════════
 def _chamar_gemini(prompt: str, descricao: str = "") -> str:
     if not client or not MODELO_ATIVO:
         raise Exception("IA indisponível: verifique a GEMINI_API_KEY e o modelo configurado.")
@@ -992,7 +998,6 @@ def _chamar_gemini(prompt: str, descricao: str = "") -> str:
             duracao  = time.time() - inicio
             logger.info(f"✅ Gemini [{descricao}] respondeu em {duracao:.1f}s")
             texto_bruto = response.text if response and response.text else ""
-            # Corta tudo após o marcador de fim para evitar loops
             if "═══FIM═══" in texto_bruto:
                 texto_bruto = texto_bruto.split("═══FIM═══")[0]
             resultado = limpar_markdown(texto_bruto)
@@ -1019,12 +1024,6 @@ def _chamar_gemini(prompt: str, descricao: str = "") -> str:
     return ""
 
 
-# ════════════════════════════════════════════════════════════
-# ✅ NOVO — CHAMADA GEMINI COM PDF NATIVO
-# Envia o PDF diretamente como arquivo, sem extração de texto.
-# O Gemini lê todas as páginas nativamente, incluindo anexos,
-# tabelas e planilhas que os extratores de texto não capturam.
-# ════════════════════════════════════════════════════════════
 def _chamar_gemini_pdf(pdf_bytes: bytes, prompt: str, descricao: str = "") -> str:
     if not client or not MODELO_ATIVO:
         raise Exception("IA indisponível: verifique a GEMINI_API_KEY e o modelo configurado.")
@@ -1033,7 +1032,6 @@ def _chamar_gemini_pdf(pdf_bytes: bytes, prompt: str, descricao: str = "") -> st
     for tentativa in range(4):
         try:
             inicio = time.time()
-            # ✅ Envia PDF como Part nativo + prompt como texto separado
             response = client.models.generate_content(
                 model=MODELO_ATIVO,
                 contents=[
@@ -1075,7 +1073,7 @@ def _chamar_gemini_pdf(pdf_bytes: bytes, prompt: str, descricao: str = "") -> st
 
 
 # ════════════════════════════════════════════════════════════
-# PROCESSAMENTO POR CHUNKS (mantido para fallback texto)
+# PROCESSAMENTO POR CHUNKS
 # ════════════════════════════════════════════════════════════
 CHUNK_SIZE    = 50_000
 CHUNK_OVERLAP = 300
@@ -1140,7 +1138,6 @@ def _consolidar_analise(pre_analises: list[str], setor: str, total_chunks: int) 
         f"═══ EXTRAÇÃO DA PARTE {i+1}/{total_chunks} ═══\n{pa}"
         for i, pa in enumerate(pre_analises) if pa.strip()
     ])
-    # Para o prompt de consolidação, adiciona {texto} no final se necessário
     prompt_resumo = config_setor["resumo"]
     if "{texto}" in prompt_resumo:
         template_setor = prompt_resumo.replace(
@@ -1159,7 +1156,6 @@ EXTRAÇÕES BRUTAS DAS {total_chunks} PARTES DO CONTRATO:
 INSTRUÇÕES FINAIS: Produza o relatório completo seguindo EXATAMENTE a estrutura acima."""
         )
     else:
-        # Prompt sem {texto} (ex: gestaocontratos) — adiciona os blocos no final
         template_setor = prompt_resumo + f"""
 
 ATENÇÃO IMPORTANTE:
@@ -1181,11 +1177,6 @@ INSTRUÇÕES FINAIS: Produza o relatório completo seguindo EXATAMENTE a estrutu
     return resultado
 
 
-# ════════════════════════════════════════════════════════════
-# ✅ NOVA FUNÇÃO PRINCIPAL — RESUMO VIA PDF NATIVO
-# Tenta enviar o PDF diretamente ao Gemini (melhor qualidade,
-# lê todas as páginas e anexos). Se falhar, usa fallback texto.
-# ════════════════════════════════════════════════════════════
 def gerar_resumo_ia(texto: str, setor: str = "juridico",
                     pdf_bytes: Optional[bytes] = None) -> str:
     if not client or not MODELO_ATIVO:
@@ -1194,14 +1185,9 @@ def gerar_resumo_ia(texto: str, setor: str = "juridico",
     config_setor = _get_config_setor(setor)
     logger.info(f"📄 Iniciando análise | setor={setor} | pdf_nativo={'sim' if pdf_bytes else 'não'}")
 
-    # ── MODO PDF NATIVO (preferencial) ───────────────────────────────────────
-    # Envia o PDF diretamente para o Gemini sem extrair texto.
-    # Isso permite que o modelo leia TODAS as páginas, incluindo
-    # anexos, tabelas e planilhas que os extratores não capturam.
     if pdf_bytes:
         try:
             prompt_resumo = config_setor["resumo"]
-            # Remove o placeholder {texto} se existir (não usado no modo PDF nativo)
             if "CONTRATO A ANALISAR:\n{texto}" in prompt_resumo:
                 prompt_resumo = prompt_resumo.replace(
                     "CONTRATO A ANALISAR:\n{texto}",
@@ -1225,15 +1211,12 @@ def gerar_resumo_ia(texto: str, setor: str = "juridico",
         except Exception as e:
             logger.warning(f"⚠️ PDF nativo falhou ({str(e)[:200]}) — usando fallback texto")
 
-    # ── FALLBACK: MODO TEXTO (extração local) ────────────────────────────────
-    # Usado quando: PDF nativo falhou, ou pdf_bytes não foi fornecido.
     tamanho = len(texto)
     logger.info(f"📄 Fallback texto: {tamanho} chars")
 
     try:
         if tamanho <= LIMITE_DIRETO:
             logger.info(f"📄 Análise direta (1 chamada): {tamanho} chars")
-            # Monta o prompt com o texto extraído
             prompt_resumo = config_setor["resumo"]
             if "{texto}" in prompt_resumo:
                 prompt = prompt_resumo.format(texto=texto)
@@ -1319,28 +1302,21 @@ Partes relevantes:"""
         return f"❌ Erro ao processar pergunta: {str(e)[:500]}"
 
 
-# ════════════════════════════════════════════════════════════
-# ✅ BACKGROUND JOB — agora passa pdf_bytes para gerar_resumo_ia
-# ════════════════════════════════════════════════════════════
 def _processar_em_background(job_id: str, conteudo: bytes, filename: str,
                               setor: str, user_id: int):
     db = None
     try:
-        logger.info(f"[job {job_id[:8]}] Extraindo texto do PDF (para armazenamento e chat)...")
+        logger.info(f"[job {job_id[:8]}] Extraindo texto do PDF...")
         texto, erro = extrair_texto_pdf_seguro(conteudo)
         if erro:
-            # Se não conseguir extrair texto mas tiver o PDF,
-            # ainda tenta analisar via PDF nativo
             logger.warning(f"[job {job_id[:8]}] Extração texto falhou: {erro}")
             texto = ""
 
         logger.info(f"[job {job_id[:8]}] {len(texto)} chars extraídos — analisando [{setor}] via PDF nativo")
 
-        # ✅ Passa o PDF nativo (conteudo) para gerar_resumo_ia
         resumo = gerar_resumo_ia(texto=texto, setor=setor, pdf_bytes=conteudo)
 
         if not resumo or resumo.startswith("❌"):
-            # Se não tiver texto E o resumo falhou, aí sim é erro fatal
             if not texto:
                 raise Exception(erro or resumo or "Não foi possível processar o PDF")
             raise Exception(resumo or "Resposta vazia da IA")
@@ -1348,9 +1324,6 @@ def _processar_em_background(job_id: str, conteudo: bytes, filename: str,
         config_setor = _get_config_setor(setor)
         db = SessionLocal()
 
-        # Armazena o texto extraído (para o chat/perguntas posteriores)
-        # Se a extração falhou, armazena string vazia — o chat não funcionará,
-        # mas o resumo foi gerado corretamente via PDF nativo
         novo = Contract(
             nome=filename,
             texto=texto or f"[Texto não extraível — análise feita via PDF nativo | {filename}]",
@@ -1703,11 +1676,8 @@ async def upload_contrato(
         raise HTTPException(status_code=400,
                             detail="Arquivo muito grande. O tamanho máximo permitido é 50MB.")
 
-    # Valida que é um PDF válido (tenta extração rápida)
-    # Não falha mais se a extração de texto for ruim — o PDF nativo cobre isso
     texto_teste, erro_pdf = extrair_texto_pdf_seguro(conteudo)
     if erro_pdf and len(conteudo) < 1000:
-        # Só rejeita se o arquivo for muito pequeno E não extraível (provavelmente corrompido)
         raise HTTPException(status_code=400, detail=erro_pdf)
 
     job_id = _criar_job(current_user.id)
@@ -1730,6 +1700,11 @@ async def status_job(job_id: str, current_user: User = Depends(get_current_user)
     return {"job_id": job_id, "status": job["status"], "result": job.get("result"),
             "error": job.get("error"), "contrato_id": job.get("contrato_id")}
 
+# ════════════════════════════════════════════════════════════
+# ✅ ENDPOINT CORRIGIDO v4.9 — /contratos/listar
+# CORREÇÃO PRINCIPAL: usuário sempre vê seus próprios contratos
+# independente de ter permissões de visibilidade configuradas ou não.
+# ════════════════════════════════════════════════════════════
 @app.get("/contratos/listar", tags=["Contratos"])
 async def listar_contratos(
     analyst_id:   Optional[int] = None,
@@ -1740,6 +1715,8 @@ async def listar_contratos(
     admin        = is_admin_user(current_user)
     meus_setores = get_setores_permitidos(current_user, db)
 
+    logger.info(f"📋 listar_contratos | user={current_user.username} | admin={admin} | setores={meus_setores} | analyst_id={analyst_id} | sector_id={sector_id}")
+
     if admin:
         query = db.query(Contract)
         if sector_id:
@@ -1748,6 +1725,7 @@ async def listar_contratos(
             query = query.filter(Contract.user_id == analyst_id)
         contratos = query.order_by(Contract.created_at.desc()).all()
     else:
+        # Busca permissões de visibilidade do usuário
         perms = db.query(UserVisibilityPermission).filter(
             UserVisibilityPermission.viewer_id == current_user.id).all()
         target_ids_usuario = set()
@@ -1759,6 +1737,7 @@ async def listar_contratos(
                 slugs_setor.add(p.sector_slug)
 
         if analyst_id:
+            # Visualizando contratos de outro analista específico
             if analyst_id != current_user.id and analyst_id not in target_ids_usuario:
                 analista_obj = db.query(User).filter(User.id == analyst_id).first()
                 if analista_obj:
@@ -1774,20 +1753,42 @@ async def listar_contratos(
                 query = query.filter(Contract.setor == sector_id)
             contratos = query.order_by(Contract.created_at.desc()).all()
         else:
-            ids_usuario = target_ids_usuario | {current_user.id}
-            conditions  = []
-            if ids_usuario:
-                conditions.append(and_(Contract.user_id.in_(ids_usuario),
-                                       Contract.setor.in_(meus_setores)))
+            conditions = []
+
+            # ✅ CORREÇÃO CRÍTICA v4.9:
+            # Regra 1 — sempre inclui contratos PRÓPRIOS do usuário no seu setor
+            # (independente de permissões configuradas)
+            if meus_setores:
+                conditions.append(
+                    and_(
+                        Contract.user_id == current_user.id,
+                        Contract.setor.in_(meus_setores)
+                    )
+                )
+
+            # Regra 2 — contratos de outros usuários com permissão explícita de usuário
+            if target_ids_usuario and meus_setores:
+                conditions.append(
+                    and_(
+                        Contract.user_id.in_(target_ids_usuario),
+                        Contract.setor.in_(meus_setores)
+                    )
+                )
+
+            # Regra 3 — contratos de setores inteiros com permissão de setor
             for slug in slugs_setor:
                 conditions.append(Contract.setor == slug)
+
             if not conditions:
+                logger.warning(f"⚠️ Nenhuma condição de busca para user={current_user.username}, setores={meus_setores}")
                 contratos = []
             else:
                 query = db.query(Contract).filter(or_(*conditions))
                 if sector_id:
                     query = query.filter(Contract.setor == sector_id)
                 contratos = query.order_by(Contract.created_at.desc()).all()
+
+    logger.info(f"📋 Retornando {len(contratos)} contrato(s) para user={current_user.username}")
 
     user_ids  = list({c.user_id for c in contratos if c.user_id})
     users_map = {u.id: u for u in db.query(User).filter(User.id.in_(user_ids)).all()}
@@ -1935,7 +1936,7 @@ async def perguntar_contrato(
 async def root():
     return {
         "sistema":       "Analisador de Contratos IA - Opersan",
-        "versao":        "4.8.0",
+        "versao":        "4.9.0",
         "status":        "online",
         "ia_disponivel": MODELO_ATIVO is not None,
         "modelo_ia":     MODELO_ATIVO,
@@ -1974,6 +1975,6 @@ async def health_check():
 if __name__ == "__main__":
     import uvicorn
     logger.info("=" * 60)
-    logger.info("🚀 OPERSAN v4.8 — PDF nativo | Setores dinâmicos | Stop sequences")
+    logger.info("🚀 OPERSAN v4.9 — Biblioteca corrigida | Setores dinâmicos | PDF nativo")
     logger.info("=" * 60)
     uvicorn.run(app, host=HOST, port=PORT)

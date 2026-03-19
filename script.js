@@ -1,11 +1,12 @@
 // ════════════════════════════════════════════════════════════════════════════
-//  OPERSAN — script.js  v4.5  (setores dinâmicos via API)
+//  OPERSAN — script.js  v4.6  (corrigido: biblioteca + setores)
 //
-//  MUDANÇAS v4.5:
-//  1. setoresDisponiveis agora é carregado da API (/admin/roles) no boot
-//  2. Metadados de ícone/cor/slug gerados automaticamente para qualquer setor
-//  3. MAPA_SETORES construído dinamicamente (não mais hardcoded)
-//  4. Mantida toda a lógica de polling, keep-alive e permissões v4.4
+//  MUDANÇAS v4.6 (correção de bugs):
+//  1. _encontrarSetorContrato: busca mais robusta, aceita slugs com/sem espaço
+//  2. renderizarContratos: não filtra mais por setoresPermitidos na listagem
+//     (o backend já faz esse filtro — o frontend só filtra pelo botão ativo)
+//  3. filtrarContratos: mesma correção
+//  4. configurarSetores: mapeamento mais tolerante a variações de slug
 // ════════════════════════════════════════════════════════════════════════════
 
 const API = (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1")
@@ -78,22 +79,13 @@ function ic(name) { return IC[name] || IC["tag"]; }
 
 // ════════════════════════════════════════════════════════════════════════════
 //  GERAÇÃO DINÂMICA DE METADADOS DE SETORES
-//  Converte qualquer nome de setor vindo da API em slug, ícone e cor
 // ════════════════════════════════════════════════════════════════════════════
 
-// Paleta de cores para setores dinâmicos (índice circular)
 const SETOR_CORES = [
-    "#3b82f6", // azul
-    "#10b981", // verde
-    "#f59e0b", // âmbar
-    "#8b5cf6", // roxo
-    "#06b6d4", // ciano
-    "#ec4899", // rosa
-    "#f97316", // laranja
-    "#14b8a6", // teal
+    "#3b82f6", "#10b981", "#f59e0b", "#8b5cf6",
+    "#06b6d4", "#ec4899", "#f97316", "#14b8a6",
 ];
 
-// Mapeamento de palavras-chave → ícone
 const SETOR_ICON_KEYWORDS = [
     { palavras: ["jurid", "legal", "lei", "direito", "advog"],     icon: "scale"          },
     { palavras: ["suprim", "compra", "estoque", "logist", "sto"],  icon: "package"        },
@@ -102,58 +94,39 @@ const SETOR_ICON_KEYWORDS = [
     { palavras: ["ti", "tech", "inform", "sistema", "software"],   icon: "settings"       },
 ];
 
-/**
- * Normaliza o nome do setor para um slug simples (sem acentos, sem espaços).
- * Ex: "Gestão de Contratos" → "gestaocontratos"
- */
 function _slugSetor(nome) {
     return (nome || "")
         .toLowerCase()
-        .normalize("NFD").replace(/[\u0300-\u036f]/g, "")  // remove acentos
+        .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
         .replace(/\s+/g, "")
         .replace(/[^a-z0-9]/g, "");
 }
 
-/**
- * Dado um nome de setor, retorna o ícone mais adequado.
- */
 function _iconSetor(nome) {
     const slug = _slugSetor(nome);
     for (const regra of SETOR_ICON_KEYWORDS) {
         if (regra.palavras.some(p => slug.includes(p))) return regra.icon;
     }
-    return "tag"; // ícone padrão para setores desconhecidos
+    return "tag";
 }
 
-/**
- * Dado um índice, retorna uma cor da paleta (circular).
- */
 function _corSetor(indice) {
     return SETOR_CORES[indice % SETOR_CORES.length];
 }
 
-/**
- * Converte um role vindo da API em objeto de setor padronizado.
- * { id: "juridico", nome: "Jurídico", icon: "scale", cor: "#3b82f6" }
- */
 function _roleParaSetor(role, indice) {
     return {
         id:   _slugSetor(role.name),
         nome: role.name,
         icon: _iconSetor(role.name),
         cor:  _corSetor(indice),
-        // guarda o id numérico da API para referência futura
         apiId: role.id,
     };
 }
 
 // ─── ESTADO GLOBAL ───────────────────────────────────────────────────────────
 
-// Inicializado vazio — preenchido pela API no boot
 let setoresDisponiveis    = [];
-
-// MAPA_SETORES construído dinamicamente após carregarSetores()
-// Formato: { "slug": ["slug"], "nome original": ["slug"] }
 let MAPA_SETORES = { "admin": [] };
 
 let setorSelecionado      = null;
@@ -216,9 +189,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         return;
     }
 
-    // ── NOVO: carrega setores da API antes de tudo ──
     await carregarSetores();
-
     await carregarVisibilidade();
 
     if (typeof renderizarSidebar === "function") {
@@ -293,13 +264,9 @@ async function autenticarUsuario() {
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-//  CARREGAMENTO DINÂMICO DE SETORES DA API  ← NOVO em v4.5
+//  CARREGAMENTO DINÂMICO DE SETORES DA API
 // ════════════════════════════════════════════════════════════════════════════
 
-/**
- * Busca /admin/roles, filtra o role "admin" e monta setoresDisponiveis + MAPA_SETORES.
- * Se a API falhar, mantém um fallback com os 3 setores originais para não quebrar.
- */
 async function carregarSetores() {
     try {
         const res = await fetch(`${API}/admin/roles`, {
@@ -310,8 +277,6 @@ async function carregarSetores() {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
         const roles = await res.json();
-
-        // Filtra o role especial "admin" — não é um setor de trabalho
         const setoresAPI = roles.filter(r => r.name.toLowerCase() !== "admin");
 
         if (!setoresAPI.length) {
@@ -320,19 +285,14 @@ async function carregarSetores() {
             return;
         }
 
-        // Constrói setoresDisponiveis com metadados gerados automaticamente
         setoresDisponiveis = setoresAPI.map((role, i) => _roleParaSetor(role, i));
 
-        // Constrói MAPA_SETORES para configurarSetores() usar
         MAPA_SETORES = { "admin": setoresDisponiveis.map(s => s.id) };
         setoresDisponiveis.forEach(s => {
-            // mapeia pelo slug
             MAPA_SETORES[s.id] = [s.id];
-            // mapeia também pelo nome original em lowercase (com e sem acento)
             const nomeLower = s.nome.toLowerCase();
             MAPA_SETORES[nomeLower] = [s.id];
-            // mapeia pelo slug sem acento (compatibilidade com roles antigos)
-            const nomeSlugNFD = s.nome.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, "");
+            const nomeSlugNFD = _slugSetor(s.nome);
             if (nomeSlugNFD !== s.id) MAPA_SETORES[nomeSlugNFD] = [s.id];
         });
 
@@ -344,22 +304,20 @@ async function carregarSetores() {
     }
 }
 
-/**
- * Fallback com os 3 setores originais caso a API não responda.
- */
 function _usarSetoresFallback() {
     setoresDisponiveis = [
         { id: "juridico",        nome: "Jurídico",            icon: "scale",          cor: "#3b82f6", apiId: null },
         { id: "suprimentos",     nome: "Suprimentos",         icon: "package",        cor: "#10b981", apiId: null },
-        { id: "gestaocontratos", nome: "Gestão de Contratos", icon: "folder-kanban",  cor: "#f59e0b", apiId: null },
+        { id: "gestaodecontratos", nome: "Gestão de Contratos", icon: "folder-kanban",  cor: "#f59e0b", apiId: null },
     ];
     MAPA_SETORES = {
-        "admin":               ["juridico", "suprimentos", "gestaocontratos"],
-        "jurídico":            ["juridico"],
-        "juridico":            ["juridico"],
-        "suprimentos":         ["suprimentos"],
-        "gestão de contratos": ["gestaocontratos"],
-        "gestaocontratos":     ["gestaocontratos"],
+        "admin":                    ["juridico", "suprimentos", "gestaodecontratos"],
+        "jurídico":                 ["juridico"],
+        "juridico":                 ["juridico"],
+        "suprimentos":              ["suprimentos"],
+        "gestão de contratos":      ["gestaodecontratos"],
+        "gestaodecontratos":        ["gestaodecontratos"],
+        "gestaocontratos":          ["gestaodecontratos"],
     };
 }
 
@@ -386,7 +344,6 @@ async function carregarVisibilidade() {
         } catch (e) {
             console.warn("⚠️ Admin: lista de usuários não carregada:", e.message);
         }
-        // Admin vê todos os setores que existem
         setoresVisiveis = setoresDisponiveis.map(s => s.id);
         return;
     }
@@ -411,31 +368,30 @@ async function carregarVisibilidade() {
 
 function configurarSetores() {
     if (usuario.isAdmin) {
-        // Admin tem acesso a todos os setores carregados
         usuario.setoresPermitidos = setoresDisponiveis.map(s => s.id);
     } else {
-        // Constrói a lista de setores do usuário a partir de seus roles
         let p = [];
 
-        // Tenta pelo role principal (string exata e slug)
+        // 1. Tenta pelo role principal
         const rolePrincipal = usuario.role.toLowerCase();
         if (MAPA_SETORES[rolePrincipal]) {
             p = [...MAPA_SETORES[rolePrincipal]];
         }
-        // Tenta também pelo slug do rolePrincipal (ex: "t.i." → "ti")
+
+        // 2. Tenta pelo slug do role principal
         if (!p.length) {
             const slugPrincipal = _slugSetor(usuario.role);
             if (MAPA_SETORES[slugPrincipal]) {
                 p = [...MAPA_SETORES[slugPrincipal]];
             }
-            // Ou diretamente como setor (ex: role "T.I." → setor.id "ti")
+            // 3. Match direto como setor
             if (!p.length) {
                 const setorDireto = setoresDisponiveis.find(s => s.id === slugPrincipal);
                 if (setorDireto) p.push(setorDireto.id);
             }
         }
 
-        // Complementa com todos os roles do usuário
+        // 4. Complementa com todos os roles do usuário
         usuario.roles.forEach(r => {
             const slugs = MAPA_SETORES[r.name.toLowerCase()] ||
                           MAPA_SETORES[_slugSetor(r.name)] ||
@@ -443,7 +399,7 @@ function configurarSetores() {
             slugs.forEach(x => { if (!p.includes(x)) p.push(x); });
         });
 
-        // Garante que slugs de roles que batem diretamente com um setor funcionem
+        // 5. Match direto por slug de role → setor
         usuario.roles.forEach(r => {
             if (r.name.toLowerCase() === "admin") return;
             const slugRole = _slugSetor(r.name);
@@ -453,9 +409,25 @@ function configurarSetores() {
             }
         });
 
+        // 6. ✅ CORREÇÃO v4.6: se ainda vazio, tenta match parcial (para slugs com variações)
+        if (!p.length) {
+            usuario.roles.forEach(r => {
+                if (r.name.toLowerCase() === "admin") return;
+                const slugRole = _slugSetor(r.name);
+                // Tenta encontrar setor cujo id está contido no slug do role ou vice-versa
+                const setorParcial = setoresDisponiveis.find(s =>
+                    slugRole.includes(s.id) || s.id.includes(slugRole)
+                );
+                if (setorParcial && !p.includes(setorParcial.id)) {
+                    p.push(setorParcial.id);
+                }
+            });
+        }
+
         usuario.setoresPermitidos = p.length ? p : (setoresDisponiveis[0] ? [setoresDisponiveis[0].id] : []);
     }
 
+    console.log("✅ setoresPermitidos:", usuario.setoresPermitidos);
     setorSelecionado = setorChatAtivo = usuario.setoresPermitidos[0] || null;
 }
 
@@ -571,7 +543,7 @@ function configurarEventos() {
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-// UPLOAD COM POLLING — mantido de v4.4
+// UPLOAD COM POLLING
 // ════════════════════════════════════════════════════════════════════════════
 
 const ETAPAS_UPLOAD = [
@@ -1071,39 +1043,49 @@ async function voltarMinhasPerspectiva() {
 // ─── RENDERIZAR CONTRATOS ─────────────────────────────────────────────────────
 
 /**
- * Tenta encontrar um setor em setoresDisponiveis pelo slug do contrato.
- * Aceita tanto match exato quanto match parcial (para slugs antigos/novos).
+ * ✅ CORRIGIDO v4.6 — busca mais robusta:
+ * Aceita "gestaocontratos", "gestaodecontratos", "gestão de contratos" etc.
  */
 function _encontrarSetorContrato(setorSlug) {
     if (!setorSlug) return setoresDisponiveis[0] || null;
     const slug = _slugSetor(setorSlug);
-    // 1. match exato por id
+
+    // 1. Match exato por id
     let s = setoresDisponiveis.find(x => x.id === slug);
     if (s) return s;
-    // 2. match por nome normalizado
+
+    // 2. Match por nome normalizado
     s = setoresDisponiveis.find(x => _slugSetor(x.nome) === slug);
     if (s) return s;
-    // 3. match parcial (para slugs antigos como "gestaocontratos" vs "gestao")
+
+    // 3. Match parcial bidirecional (para slugs com/sem "de", espaços, etc.)
     s = setoresDisponiveis.find(x => slug.includes(x.id) || x.id.includes(slug));
+    if (s) return s;
+
+    // 4. Match por setor_nome retornado pelo backend
+    s = setoresDisponiveis.find(x => _slugSetor(x.nome) === _slugSetor(setorSlug));
     return s || null;
 }
 
+/**
+ * ✅ CORRIGIDO v4.6 — não filtra mais por setoresPermitidos aqui:
+ * O backend JÁ filtra pelos setores permitidos. O frontend só aplica
+ * o filtro do botão ativo (setorFiltroAtivo).
+ */
 function renderizarContratos(lista) {
     const el = document.getElementById("listaContratos");
     if (!el) return;
 
-    let filtrados = lista.filter(c => {
-        const setorContrato = _slugSetor(c.setor || "");
-        const setorObj = _encontrarSetorContrato(setorContrato);
-        const setorId  = setorObj?.id || setorContrato;
-
-        if (setorFiltroAtivo === "todos") {
-            return usuario.setoresPermitidos.includes(setorId) ||
-                   usuario.isAdmin ||
-                   setoresDisponiveis.some(s => s.id === setorId);
-        }
-        return setorId === setorFiltroAtivo;
-    });
+    // O backend já retorna apenas contratos autorizados.
+    // Aqui só aplicamos o filtro de botão (se não for "todos").
+    let filtrados = lista;
+    if (setorFiltroAtivo !== "todos") {
+        filtrados = lista.filter(c => {
+            const setorObj = _encontrarSetorContrato(c.setor);
+            const setorId  = setorObj?.id || _slugSetor(c.setor);
+            return setorId === setorFiltroAtivo;
+        });
+    }
 
     if (!filtrados.length) {
         const msg = perspectiva.analystId !== null
@@ -1119,7 +1101,7 @@ function renderizarContratos(lista) {
         const setorObj = _encontrarSetorContrato(c.setor);
         const badge = setorObj
             ? `<span class="setor-badge-card" style="background:${setorObj.cor}18;border-color:${setorObj.cor}40;color:${setorObj.cor}">${ic(setorObj.icon)}${setorObj.nome}</span>`
-            : "";
+            : `<span class="setor-badge-card">${c.setor_nome || c.setor}</span>`;
 
         const mostrarAnalista = c.show_analyst && c.analista && c.analista.id;
         const analistaBadge   = mostrarAnalista
@@ -1158,29 +1140,36 @@ function renderizarContratos(lista) {
     atualizarContadorResultados(filtrados.length, lista.length);
 }
 
+/**
+ * ✅ CORRIGIDO v4.6 — filtro local apenas por botão e busca de texto.
+ * Não filtra por setoresPermitidos (o backend já fez isso).
+ */
 function filtrarContratos() {
     const input = document.getElementById("searchInput");
     const clear = document.getElementById("clearSearch");
     const termo = input?.value.toLowerCase().trim() || "";
     if (clear) clear.classList.toggle("hidden", !termo);
 
-    let filtrados = todosContratos.filter(c => {
-        const setorContrato = _slugSetor(c.setor || "");
-        const setorObj      = _encontrarSetorContrato(setorContrato);
-        const setorId       = setorObj?.id || setorContrato;
+    let filtrados = todosContratos;
 
-        if (setorFiltroAtivo === "todos") {
-            return usuario.setoresPermitidos.includes(setorId) || usuario.isAdmin;
-        }
-        return setorId === setorFiltroAtivo;
-    });
+    // Filtro por setor (botão)
+    if (setorFiltroAtivo !== "todos") {
+        filtrados = filtrados.filter(c => {
+            const setorObj = _encontrarSetorContrato(c.setor);
+            const setorId  = setorObj?.id || _slugSetor(c.setor);
+            return setorId === setorFiltroAtivo;
+        });
+    }
 
-    if (termo) filtrados = filtrados.filter(c =>
-        c.nome.toLowerCase().includes(termo) ||
-        (c.preview || "").toLowerCase().includes(termo) ||
-        new Date(c.data).toLocaleDateString("pt-BR").includes(termo) ||
-        (c.analista?.nome || "").toLowerCase().includes(termo)
-    );
+    // Filtro por texto de busca
+    if (termo) {
+        filtrados = filtrados.filter(c =>
+            c.nome.toLowerCase().includes(termo) ||
+            (c.preview || "").toLowerCase().includes(termo) ||
+            new Date(c.data).toLocaleDateString("pt-BR").includes(termo) ||
+            (c.analista?.nome || "").toLowerCase().includes(termo)
+        );
+    }
 
     renderizarContratos(filtrados);
 }
