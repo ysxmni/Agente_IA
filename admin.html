@@ -8,6 +8,41 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Lora:wght@700&display=swap" rel="stylesheet">
+    <style>
+        /* ── Toggle roxo para admin no modal ── */
+        .admin-track { }
+        .toggle-switch input:checked ~ .admin-track            { background-color: rgba(139,92,246,0.15); border-color: #8b5cf6; }
+        .toggle-switch input:checked ~ .admin-track .toggle-thumb { background-color: #8b5cf6; }
+
+        #edit-admin-toggle:checked ~ .toggle-track            { background-color: rgba(139,92,246,0.15) !important; border-color: #8b5cf6 !important; }
+        #edit-admin-toggle:checked ~ .toggle-track .toggle-thumb { background-color: #8b5cf6 !important; }
+
+        /* Aviso de proteção no modal */
+        .edit-admin-aviso {
+            display: none;
+            font-size: .75rem;
+            color: var(--amber);
+            margin-top: .35rem;
+            padding: .35rem .65rem;
+            background: rgba(245,158,11,0.08);
+            border-radius: 6px;
+            border: 1px solid rgba(245,158,11,0.2);
+        }
+
+        /* Linha do toggle de admin no modal */
+        .edit-admin-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: .65rem .85rem;
+            background: var(--input-bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+        }
+        .edit-admin-row-left  { display: flex; flex-direction: column; gap: .15rem; }
+        .edit-admin-row-title { font-size: .85rem; font-weight: 600; color: var(--text-primary); }
+        .edit-admin-row-desc  { font-size: .73rem; color: var(--text-secondary); }
+    </style>
 </head>
 <body>
 <div class="admin-layout">
@@ -122,6 +157,7 @@
                     </div>
                     <div class="admin-card-body table-body">
                         <table class="admin-table">
+                            <!-- 4 colunas: sem coluna "Admin" separada -->
                             <thead><tr><th>E-mail</th><th>Nome</th><th>Setores</th><th>Ações</th></tr></thead>
                             <tbody id="users-table-body">
                                 <tr><td colspan="4" class="preview-empty">Carregando...</td></tr>
@@ -286,6 +322,23 @@
                     <label>Setores de acesso</label>
                     <div id="edit-sectors-list" class="badges-container"></div>
                 </div>
+
+                <!-- Toggle de Admin — permanece apenas aqui no modal -->
+                <div class="field-group" id="edit-admin-wrap">
+                    <label>Permissão de Administrador</label>
+                    <div class="edit-admin-row">
+                        <div class="edit-admin-row-left">
+                            <span class="edit-admin-row-title" id="edit-admin-label">Usuário comum</span>
+                            <span class="edit-admin-row-desc">Acesso ao painel de administração</span>
+                        </div>
+                        <label class="toggle-switch" style="cursor:pointer;flex-shrink:0">
+                            <input type="checkbox" id="edit-admin-toggle">
+                            <div class="toggle-track admin-track"><div class="toggle-thumb"></div></div>
+                        </label>
+                    </div>
+                    <span class="edit-admin-aviso" id="edit-admin-aviso"></span>
+                </div>
+
                 <div class="modal-actions">
                     <button type="button" class="btn-secondary" onclick="closeEditUserModal()">Cancelar</button>
                     <button type="submit" class="btn-submit">
