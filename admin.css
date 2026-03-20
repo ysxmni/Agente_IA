@@ -159,11 +159,15 @@ html, body {
 
 /* ══════════════════════════════════════════════════════════
    SECTIONS
+   A regra .hidden usa display:none !important.
+   O layout side-by-side usa a classe .section-grid
+   para NÃO conflitar com .hidden.
    ══════════════════════════════════════════════════════════ */
 
 .admin-section  { flex: 1; }
 .hidden         { display: none !important; }
 
+/* Grid lado a lado: formulário esquerda + tabela direita */
 .section-grid {
     display: grid;
     grid-template-columns: 380px 1fr;
@@ -343,44 +347,19 @@ html, body {
 .btn-danger:hover    { opacity: 0.8; }
 .btn-danger:disabled { opacity: 0.5; cursor: not-allowed; }
 
-/* ══════════════════════════════════════════════════════════
-   BOTÕES DE AÇÃO DA TABELA — apenas ícone, sem texto
-   ══════════════════════════════════════════════════════════ */
-
-.actions-cell {
-    display: flex;
-    gap: 0.35rem;
-    align-items: center;
-}
+.actions-cell { display: flex; gap: 0.4rem; align-items: center; }
 
 .btn-edit,
 .btn-delete {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 32px;
-    height: 32px;
-    padding: 0;
-    border-radius: 7px;
-    font-family: var(--font-sans);
-    cursor: pointer;
-    border: 1px solid transparent;
-    transition: opacity 0.2s, transform 0.15s;
-    flex-shrink: 0;
+    display: inline-flex; align-items: center; gap: 0.3rem;
+    padding: 0.3rem 0.65rem; border-radius: 6px;
+    font-family: var(--font-sans); font-size: 0.78rem; font-weight: 500;
+    cursor: pointer; border: 1px solid transparent; transition: opacity 0.2s;
 }
-
-/* Esconde o texto, mantém apenas o SVG */
-.btn-edit span,
-.btn-delete span { display: none; }
-
 .btn-edit   { background-color: var(--blue-dim); color: var(--accent-blue); border-color: rgba(59,130,246,0.2); }
 .btn-delete { background-color: var(--red-dim);  color: var(--red);         border-color: rgba(239,68,68,0.2); }
-
 .btn-edit:hover,
-.btn-delete:hover { opacity: 0.75; transform: scale(1.08); }
-
-.btn-edit svg,
-.btn-delete svg { width: 15px; height: 15px; pointer-events: none; }
+.btn-delete:hover { opacity: 0.75; }
 
 .btn-revogar-tudo {
     display: inline-flex; align-items: center; justify-content: center; gap: 0.4rem;
@@ -413,13 +392,9 @@ html, body {
 
 .admin-table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
 .admin-table thead tr  { background-color: rgba(26,37,61,0.5); }
-.admin-table th        { padding: 0.65rem 1rem; text-align: left; font-size: 0.72rem; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; white-space: nowrap; }
-.admin-table td        { padding: 0.65rem 1rem; border-top: 1px solid var(--border); color: var(--text-secondary); vertical-align: middle; }
+.admin-table th        { padding: 0.7rem 1.1rem; text-align: left; font-size: 0.75rem; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; white-space: nowrap; }
+.admin-table td        { padding: 0.75rem 1.1rem; border-top: 1px solid var(--border); color: var(--text-secondary); vertical-align: middle; }
 .admin-table tbody tr:hover td { background-color: rgba(255,255,255,0.02); }
-
-/* Coluna de Ações com largura mínima para os dois ícones */
-.admin-table th:last-child,
-.admin-table td:last-child { width: 80px; }
 
 .preview-empty { text-align: center; color: var(--text-secondary); padding: 2rem 1rem; font-size: 0.85rem; }
 
@@ -430,17 +405,7 @@ html, body {
     min-width: 20px; height: 18px; padding: 0 0.4rem;
 }
 
-.role-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 3px;
-    padding: 0.18rem 0.6rem;
-    border-radius: 20px;
-    font-size: 0.73rem;
-    font-weight: 600;
-    margin: 0.1rem 0.1rem 0.1rem 0;
-    white-space: nowrap;
-}
+.role-badge { display: inline-block; padding: 0.2rem 0.65rem; border-radius: 20px; font-size: 0.75rem; font-weight: 600; margin: 0.1rem; }
 .role-admin         { background-color: rgba(139,92,246,0.12); color: var(--purple);       border: 1px solid rgba(139,92,246,0.25); }
 .role-user          { background-color: var(--blue-dim);       color: var(--accent-blue);  border: 1px solid rgba(59,130,246,0.2); }
 .setor-juridico     { background-color: var(--blue-dim);       color: var(--accent-blue);  border: 1px solid rgba(59,130,246,0.2); }
@@ -674,6 +639,7 @@ html, body {
     .admin-main  { padding: 1.5rem; }
     .perm-layout { grid-template-columns: 250px 1fr; gap: 1rem; }
 
+    /* Empilha form + tabela abaixo de 1024px */
     .section-grid { grid-template-columns: 1fr; }
     .section-grid .form-col { position: static; }
 }
@@ -709,7 +675,7 @@ html, body {
     .perm-layout { grid-template-columns: 1fr; }
 
     .admin-card-body.table-body { overflow-x: auto; }
-    .admin-table                { min-width: 420px; }
+    .admin-table                { min-width: 520px; }
 
     .perm-painel-header-wrap { flex-direction: column; align-items: flex-start !important; gap: 0.75rem; }
     .perm-painel-acoes       { width: 100%; justify-content: flex-end; }
@@ -736,6 +702,6 @@ html, body {
     .stat-box-value { font-size: 1.4rem; }
     .admin-card-header.space-between { flex-wrap: wrap; gap: 0.5rem; }
     .search-wrap   { width: 100%; }
-    .actions-cell  { gap: 0.25rem; }
+    .actions-cell  { flex-direction: column; align-items: flex-start; gap: 0.3rem; }
     .perm-setor-desc { display: none; }
 }

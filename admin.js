@@ -566,8 +566,8 @@ function renderizarTabelaUsuarios(filtro = "") {
             <td>${formatarNome(user.username)}</td>
             <td>${setoresHtml}</td>
             <td><div class="actions-cell">
-                <button class="btn-edit"   onclick="abrirEditarUsuario(${user.id})">${SVG.edit} Editar</button>
-                <button class="btn-delete" onclick="confirmarExclusao(${user.id}, 'user')">${SVG.trash} Excluir</button>
+                <button class="btn-edit"   onclick="abrirEditarUsuario(${user.id})">${SVG.edit}</button>
+                <button class="btn-delete" onclick="confirmarExclusao(${user.id}, 'user')">${SVG.trash}</button>
             </div></td>`;
 
         tbody.appendChild(tr);
