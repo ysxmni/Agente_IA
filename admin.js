@@ -1,10 +1,11 @@
 // ════════════════════════════════════════════════════════════════════════════
-//  OPERSAN — admin.js  v2.2  (toggle admin apenas no modal de edição)
+//  OPERSAN — admin.js  v2.3
 //
-//  MUDANÇAS v2.2:
-//  - Removida coluna "Admin" da tabela (toggle inline removido)
-//  - Badge "Admin" aparece na coluna de Setores quando usuário é admin
-//  - Toggle admin permanece apenas dentro do modal de edição
+//  CORREÇÕES v2.3:
+//  - Contadores "Usuários Cadastrados" e "Setores Cadastrados" agora refletem
+//    os dados reais (preview-users-count / preview-sectors-count)
+//  - Tabela de usuários: quando o usuário é admin, exibe APENAS badge Admin
+//    (sem duplicar badges de setor ao lado)
 // ════════════════════════════════════════════════════════════════════════════
 
 const API   = "https://agente-ia-62sa.onrender.com";
@@ -461,15 +462,34 @@ async function carregarDados() {
     }
 }
 
+// ════════════════════════════════════════════════════════════════════════════
+//  STATS
+//  FIX v2.3: atualiza tanto os stat-boxes (total-*) quanto os counters dos
+//  headers das tabelas (preview-*-count) com os valores corretos.
+// ════════════════════════════════════════════════════════════════════════════
+
 function renderizarStats() {
+    // Setores: exclui o role "admin" da contagem
     const setores = allRoles.filter(r => r.name.toLowerCase() !== "admin");
+
+    // Admins: usuários cujo campo role === "admin" OU que possuem o role "admin"
     const admins  = allUsers.filter(u =>
         u.role === "admin" || u.roles.some(r => r.name.toLowerCase() === "admin")
     );
+
     const el = (id, val) => { const e = document.getElementById(id); if (e) e.textContent = val; };
+
+    // Stat-boxes no topo
     el("total-users",   allUsers.length);
     el("total-sectors", setores.length);
     el("total-admins",  admins.length);
+
+    // ── FIX: counters nos headers das tabelas ────────────────────────────────
+    // Esses IDs ficam dentro dos <h3> dos cards de tabela e precisam ser
+    // atualizados aqui, já que renderizarPreviewUsuarios/Setores() pode não
+    // ser chamado quando a aba correspondente está oculta.
+    el("preview-users-count",   allUsers.length);
+    el("preview-sectors-count", setores.length);
 }
 
 function renderizarBadgesSetores() {
@@ -481,19 +501,33 @@ function renderizarBadgesSetores() {
 function renderizarPreviewUsuarios() {
     const container = document.getElementById("preview-users-list");
     const counter   = document.getElementById("preview-users-count");
+
+    // FIX v2.3: mostra TODOS os usuários (admins inclusive) no counter e lista
+    if (counter) counter.textContent = allUsers.length;
+
     if (!container) return;
-    const naoAdmin = allUsers.filter(u =>
-        u.role !== "admin" && !u.roles.some(r => r.name.toLowerCase() === "admin")
-    );
-    if (counter) counter.textContent = naoAdmin.length;
-    if (!naoAdmin.length) { container.innerHTML = '<p class="preview-empty">Nenhum usuário cadastrado ainda.</p>'; return; }
-    container.innerHTML = naoAdmin.map(u => {
+
+    if (!allUsers.length) {
+        container.innerHTML = '<p class="preview-empty">Nenhum usuário cadastrado ainda.</p>';
+        return;
+    }
+
+    container.innerHTML = allUsers.map(u => {
         const nome       = formatarNome(u.username);
         const inicial    = nome.charAt(0).toUpperCase();
-        const setores    = u.roles.filter(r => r.name.toLowerCase() !== "admin");
-        const badgesHtml = setores.length
-            ? setores.map(r => `<span class="preview-role-badge" data-setor="${_slugSetor(r.name)}">${r.name}</span>`).join("")
-            : `<span class="preview-role-badge sem-setor">sem setor</span>`;
+        const eAdmin     = u.role === "admin" || u.roles.some(r => r.name.toLowerCase() === "admin");
+
+        // Se for admin, mostra badge Admin; senão mostra setores
+        let badgesHtml;
+        if (eAdmin) {
+            badgesHtml = `<span class="preview-role-badge" style="background:rgba(139,92,246,0.15);color:#8b5cf6;border-color:rgba(139,92,246,0.3)">Admin</span>`;
+        } else {
+            const setores = u.roles.filter(r => r.name.toLowerCase() !== "admin");
+            badgesHtml = setores.length
+                ? setores.map(r => `<span class="preview-role-badge" data-setor="${_slugSetor(r.name)}">${r.name}</span>`).join("")
+                : `<span class="preview-role-badge sem-setor">sem setor</span>`;
+        }
+
         return `<div class="preview-user-card"><div class="preview-avatar">${inicial}</div><div class="preview-user-info"><span class="preview-user-name">${nome}</span><div class="preview-roles">${badgesHtml}</div></div></div>`;
     }).join("");
 }
@@ -503,8 +537,14 @@ function renderizarPreviewSetores() {
     const counter   = document.getElementById("preview-sectors-count");
     if (!container) return;
     const setores = allRoles.filter(r => r.name.toLowerCase() !== "admin");
+
+    // FIX v2.3: garante que o counter é atualizado aqui também
     if (counter) counter.textContent = setores.length;
-    if (!setores.length) { container.innerHTML = '<p class="preview-empty">Nenhum setor cadastrado ainda.</p>'; return; }
+
+    if (!setores.length) {
+        container.innerHTML = '<p class="preview-empty">Nenhum setor cadastrado ainda.</p>';
+        return;
+    }
     container.innerHTML = setores.map(role => {
         const emoji    = _emojiSetor(role.name);
         const qtdUsers = allUsers.filter(u => u.roles.some(r => r.id === role.id)).length;
@@ -540,26 +580,29 @@ function renderizarTabelaUsuarios(filtro = "") {
         const tr     = document.createElement("tr");
         const eAdmin = user.role === "admin" || user.roles.some(r => r.name.toLowerCase() === "admin");
 
-        // Badge de Admin (aparece primeiro na coluna de setores)
-        const badgeAdmin = eAdmin
-            ? `<span class="role-badge role-admin" style="display:inline-flex;align-items:center;gap:3px">${SVG.shield} Admin</span>`
-            : "";
+        // ── FIX v2.3: quando é admin, exibe APENAS o badge Admin
+        //              quando não é admin, exibe os badges de setor normalmente
+        let setoresHtml;
 
-        // Badges de setor (exclui role "admin" da exibição)
-        const badgesSetor = user.roles
-            .filter(r => r.name.toLowerCase() !== "admin")
-            .map(r => {
-                const n = r.name.toLowerCase();
-                let cls = "role-badge ";
-                if (n === "jurídico" || n === "juridico") cls += "role-user setor-juridico";
-                else if (n === "suprimentos")              cls += "role-user setor-suprimentos";
-                else if (n.includes("gest"))               cls += "role-user setor-gestao";
-                else                                       cls += "role-user";
-                return `<span class="${cls}">${r.name}</span>`;
-            }).join(" ");
+        if (eAdmin) {
+            // Apenas badge Admin — sem duplicar setores ao lado
+            setoresHtml = `<span class="role-badge role-admin" style="display:inline-flex;align-items:center;gap:3px">${SVG.shield} Admin</span>`;
+        } else {
+            const badgesSetor = user.roles
+                .filter(r => r.name.toLowerCase() !== "admin")
+                .map(r => {
+                    const n = r.name.toLowerCase();
+                    let cls = "role-badge ";
+                    if (n === "jurídico" || n === "juridico") cls += "role-user setor-juridico";
+                    else if (n === "suprimentos")              cls += "role-user setor-suprimentos";
+                    else if (n.includes("gest"))               cls += "role-user setor-gestao";
+                    else                                       cls += "role-user";
+                    return `<span class="${cls}">${r.name}</span>`;
+                }).join(" ");
 
-        const setoresHtml = (badgeAdmin + (badgesSetor ? " " + badgesSetor : "")).trim()
-            || `<span style="color:var(--text-secondary);font-size:.78rem">—</span>`;
+            setoresHtml = badgesSetor.trim()
+                || `<span style="color:var(--text-secondary);font-size:.78rem">—</span>`;
+        }
 
         tr.innerHTML = `
             <td>${user.username}</td>
@@ -601,8 +644,8 @@ function renderizarTabelaSetores(filtro = "") {
             <td>${role.description || "—"}</td>
             <td>${criado}</td>
             <td><div class="actions-cell">
-                <button class="btn-edit"   onclick="abrirEditarSetor(${role.id})">${SVG.edit} Editar</button>
-                <button class="btn-delete" onclick="confirmarExclusao(${role.id}, 'sector')">${SVG.trash} Excluir</button>
+                <button class="btn-edit"   onclick="abrirEditarSetor(${role.id})">${SVG.edit}</button>
+                <button class="btn-delete" onclick="confirmarExclusao(${role.id}, 'sector')">${SVG.trash}</button>
             </div></td>`;
         tbody.appendChild(tr);
     });
