@@ -111,15 +111,12 @@ except Exception as e:
     client = None
     MODELO_ATIVO = None
 
+
 # ════════════════════════════════════════════════════════════
 # PROMPTS ESPECIALIZADOS POR SETOR
 # ════════════════════════════════════════════════════════════
-PROMPTS_SETORES = {
-    "juridico": {
-        "nome": "Jurídico",
-        "icon": "scale",
-        "cor": "#3b82f6",
-        "resumo": """Você é um assistente jurídico especializado em análise de contratos.
+
+PROMPT_JURIDICO_RESUMO = """Você é um assistente jurídico especializado em análise de contratos.
 
 ════════════════════════════════════════════
 REGRAS ABSOLUTAS — LEIA ANTES DE COMEÇAR
@@ -177,8 +174,9 @@ ANÁLISE JURÍDICA DO CONTRATO
 ════════════════════════════════════════════
 
 CONTRATO A ANALISAR:
-{texto}""",
-        "perguntas": """Você é um assistente jurídico especializado em contratos.
+{texto}"""
+
+PROMPT_JURIDICO_PERGUNTAS = """Você é um assistente jurídico especializado em contratos.
 
 REGRAS:
 1. Responda SOMENTE com base no texto do contrato fornecido abaixo.
@@ -193,13 +191,9 @@ PERGUNTA:
 {pergunta}
 
 Responda citando a cláusula exata de cada informação."""
-    },
 
-    "suprimentos": {
-        "nome": "Suprimentos",
-        "icon": "package",
-        "cor": "#10b981",
-        "resumo": """Você é um especialista em gestão de suprimentos e compras.
+
+PROMPT_SUPRIMENTOS_RESUMO = """Você é um especialista em gestão de suprimentos e compras.
 
 ════════════════════════════════════════════
 REGRAS ABSOLUTAS — LEIA ANTES DE COMEÇAR
@@ -256,8 +250,9 @@ ANÁLISE DE SUPRIMENTOS E COMPRAS
 ════════════════════════════════════════════
 
 CONTRATO A ANALISAR:
-{texto}""",
-        "perguntas": """Você é um especialista em compras e gestão de suprimentos.
+{texto}"""
+
+PROMPT_SUPRIMENTOS_PERGUNTAS = """Você é um especialista em compras e gestão de suprimentos.
 
 REGRAS:
 1. Responda SOMENTE com base no texto do contrato fornecido abaixo.
@@ -272,18 +267,7 @@ PERGUNTA:
 {pergunta}
 
 Responda citando a cláusula ou item exato de cada informação."""
-    },
 
-    "gestaodecontratos": {
-    "nome": "Gestão de Contratos",
-    "icon": "folder-kanban",
-    "cor": "#f59e0b",
-    "resumo": """Você é um especialista em gestão operacional de contratos.
-
-# ════════════════════════════════════════════════════════════
-# PROMPT CORRIGIDO — GESTÃO DE CONTRATOS OPERSAN v2.0
-# Substitui o bloco "gestaodecontratos" no dicionário PROMPTS_SETORES
-# ════════════════════════════════════════════════════════════
 
 PROMPT_GESTAO_RESUMO = """Você é um especialista em gestão operacional de contratos da Opersan.
 
@@ -555,73 +539,28 @@ PERGUNTA:
 Responda citando a cláusula, item ou anexo exato (com título real do anexo)."""
 
 
-# ════════════════════════════════════════════════════════════
-# INSTRUÇÃO DE INTEGRAÇÃO NO CÓDIGO PRINCIPAL (main.py)
-# ════════════════════════════════════════════════════════════
-#
-# No dicionário PROMPTS_SETORES, substitua o bloco "gestaodecontratos"
-# pelo seguinte:
-#
-# "gestaodecontratos": {
-#     "nome": "Gestão de Contratos",
-#     "icon": "folder-kanban",
-#     "cor": "#f59e0b",
-#     "resumo": PROMPT_GESTAO_RESUMO,
-#     "perguntas": PROMPT_GESTAO_PERGUNTAS,
-# }
-#
-# ════════════════════════════════════════════════════════════
-# RESUMO DAS MUDANÇAS EM RELAÇÃO AO PROMPT ANTERIOR
-# ════════════════════════════════════════════════════════════
-#
-# 1. SEÇÃO NOVA — "2. VALORES E CONDIÇÕES FINANCEIRAS"
-#    Problema identificado: o resumo anterior omitiu completamente os
-#    valores do contrato (Opex Fixo R$41.944/mês, Opex Variável R$11,20/m³,
-#    Capex R$10.232/mês, seguro R$1.000.000). Essa é a informação mais
-#    crítica para a equipe de gestão de contratos.
-#    Solução: seção dedicada, marcada como TÓPICO CRÍTICO, com campos
-#    estruturados para todos os componentes financeiros.
-#
-# 2. CAMPO ADICIONADO — "Contato Cliente / Contato Opersan" no CABEÇALHO
-#    Problema: o resumo anterior listava apenas um contato genérico.
-#    Solução: separação explícita de contatos de ambas as partes com
-#    e-mail e telefone.
-#
-# 3. SEÇÃO 5 (MÃO DE OBRA) — Campos adicionados
-#    - "Documentos obrigatórios (PPRA, PCMSO, ASO, etc.)"
-#    - "Substituição de profissional: prazo e condições"
-#    - Removida a instrução de escrever "Não especificado" (violava regra)
-#
-# 4. SEÇÃO 8 → renomeada para "PRAZOS E CRONOGRAMA" (era "PRAZOS E SLAs")
-#    - Adicionados: prazo de operação assistida, prazo de garantia de
-#      equipamentos, prazo de aviso prévio para rescisão imotivada.
-#    - Removidos KPIs e "tempo de resposta" (não constam neste tipo de
-#      contrato e geravam campos "não especificado").
-#
-# 5. SEÇÃO 9 (CUSTOS ADICIONAIS) — instrução mais precisa
-#    Problema: o resumo anterior listou obrigações rotineiras do cliente
-#    (taxas de licença, limpeza de caixas) como "custos adicionais da
-#    operação", o que é incorreto — são responsabilidades do contratante.
-#    Solução: instrução explícita com exemplos válidos e inválidos,
-#    alinhada à lógica financeira da operação Opersan.
-#
-# 6. SEÇÃO 10 (PENALIDADES) — campos adicionados
-#    - "Condição de aplicação" por penalidade (prazo de notificação)
-#    - "Rescisão imotivada — condições financeiras" separadas por cenário
-#    - "Proteção de dados (LGPD)" como item próprio
-#    Problema: multa de 20% por cessão de crédito não autorizada
-#    (Item 3.1.2) não havia sido capturada.
-#
-# 7. SEÇÃO 12 (ANEXOS) — campos adicionados
-#    - "Se definição de responsabilidades de manutenção: tabela completa
-#      item a item" → captura o Anexo I da Proposta Técnica (item 15)
-#    - "Se qualidades de água/efluente: todos os parâmetros e limites"
-#      → captura o Anexo IV
-#    - Ação do gestor mais específica e orientada a processo
-#
-# 8. PROMPT DE PERGUNTAS — regra 7 adicionada
-#    "Ao citar valores financeiros, sempre informe a base de cálculo"
-#    → evita respostas como "multa de 10%" sem mencionar sobre qual valor.
+PROMPTS_SETORES = {
+    "juridico": {
+        "nome":      "Jurídico",
+        "icon":      "scale",
+        "cor":       "#3b82f6",
+        "resumo":    PROMPT_JURIDICO_RESUMO,
+        "perguntas": PROMPT_JURIDICO_PERGUNTAS,
+    },
+    "suprimentos": {
+        "nome":      "Suprimentos",
+        "icon":      "package",
+        "cor":       "#10b981",
+        "resumo":    PROMPT_SUPRIMENTOS_RESUMO,
+        "perguntas": PROMPT_SUPRIMENTOS_PERGUNTAS,
+    },
+    "gestaodecontratos": {
+        "nome":      "Gestão de Contratos",
+        "icon":      "folder-kanban",
+        "cor":       "#f59e0b",
+        "resumo":    PROMPT_GESTAO_RESUMO,
+        "perguntas": PROMPT_GESTAO_PERGUNTAS,
+    },
 }
 
 
@@ -902,6 +841,7 @@ def get_db():
     finally:
         db.close()
 
+
 # ════════════════════════════════════════════════════════════
 # AUTENTICAÇÃO
 # ════════════════════════════════════════════════════════════
@@ -928,6 +868,7 @@ async def get_current_admin_user(
     if user.role != 'admin':
         raise HTTPException(status_code=403, detail="Requer permissão de administrador.")
     return user
+
 
 # ════════════════════════════════════════════════════════════
 # OPERAÇÕES DE JOB
@@ -993,6 +934,7 @@ def _limpar_jobs_antigos():
     finally:
         db.close()
 
+
 # ════════════════════════════════════════════════════════════
 # FUNÇÕES AUXILIARES
 # ════════════════════════════════════════════════════════════
@@ -1045,14 +987,15 @@ def get_setores_permitidos(user: User, db: Session) -> List[str]:
         if slug and slug not in setores:
             setores.append(slug)
 
-    # ── NOVO: fallback pelo campo role (string) do usuário ──────────────
-    # Garante que se o user.role não foi mapeado via roles[], ainda funciona
+    # Fallback pelo campo role (string) do usuário —
+    # garante que se o user.role não foi mapeado via roles[], ainda funciona
     if not setores and user.role and user.role.lower() not in ("admin", "user"):
         slug_role = _slug_setor(user.role)
         if slug_role:
             setores.append(slug_role)
 
     return setores or ["juridico"]
+
 
 # ════════════════════════════════════════════════════════════
 # EXTRAÇÃO DE PDF
@@ -1132,6 +1075,7 @@ def extrair_texto_pdf(conteudo: bytes) -> str:
     if erro:
         raise HTTPException(status_code=400, detail=erro)
     return texto
+
 
 # ════════════════════════════════════════════════════════════
 # CONFIGURAÇÃO PADRÃO DO GEMINI
@@ -1562,6 +1506,7 @@ class SetUserVisibilityBody(BaseModel):
     target_ids:   List[int] = []
     sector_slugs: List[str] = []
 
+
 # ════════════════════════════════════════════════════════════
 # ENDPOINTS — AUTENTICAÇÃO
 # ════════════════════════════════════════════════════════════
@@ -1594,6 +1539,7 @@ async def read_users_me(current_user: Annotated[User, Depends(get_current_user)]
         "role":     current_user.role,
         "roles":    [{"id": r.id, "name": r.name} for r in current_user.roles]
     }
+
 
 # ════════════════════════════════════════════════════════════
 # ENDPOINTS — ADMINISTRAÇÃO DE USUÁRIOS
@@ -1640,21 +1586,18 @@ def update_user(user_id: int, user_data: UserUpdate, db: Session = Depends(get_d
     if user_data.password:
         db_user.hashed_password = hash_password(user_data.password)
 
-    # ── TOGGLE ADMIN v4.9 ───────────────────────────────────────────────────
-    # Atualiza o campo role e sincroniza o role "Admin" na tabela de roles
+    # Toggle admin — atualiza o campo role e sincroniza o role "Admin" na tabela de roles
     if user_data.role is not None:
         novo_role = user_data.role.lower()
         if novo_role not in ("admin", "user"):
             raise HTTPException(status_code=400, detail="Role deve ser 'admin' ou 'user'")
 
-        # Impede que o admin remova sua própria permissão de admin
         if novo_role != "admin" and db_user.id == current_user.id:
             raise HTTPException(status_code=400,
                                 detail="Você não pode remover sua própria permissão de administrador.")
 
         db_user.role = novo_role
 
-        # Sincroniza o role "Admin" no relacionamento user_roles
         admin_role = db.query(Role).filter(Role.name.ilike("admin")).first()
         if admin_role:
             tem_role_admin = any(r.id == admin_role.id for r in db_user.roles)
@@ -1665,7 +1608,6 @@ def update_user(user_id: int, user_data: UserUpdate, db: Session = Depends(get_d
 
     if user_data.role_ids is not None:
         roles_novos = db.query(Role).filter(Role.id.in_(user_data.role_ids)).all()
-        # Se o usuário é admin, garante que o role Admin permanece na lista
         if db_user.role == "admin":
             admin_role = db.query(Role).filter(Role.name.ilike("admin")).first()
             if admin_role and admin_role not in roles_novos:
@@ -1674,6 +1616,7 @@ def update_user(user_id: int, user_data: UserUpdate, db: Session = Depends(get_d
 
     db.commit(); db.refresh(db_user)
     return db_user
+
 
 # ════════════════════════════════════════════════════════════
 # ENDPOINTS — ADMINISTRAÇÃO DE ROLES
@@ -1716,6 +1659,7 @@ async def delete_role(role_id: int, db: Session = Depends(get_db),
     name = role.name
     db.delete(role); db.commit()
     return {"detail": f"Setor '{name}' deletado"}
+
 
 # ════════════════════════════════════════════════════════════
 # ENDPOINTS — PERMISSÕES DE VISIBILIDADE
@@ -1851,6 +1795,7 @@ async def minhas_permissoes(db: Session = Depends(get_db),
                                 "cor": avatar_color(target.id)})
     return {"viewer_id": current_user.id, "can_see": can_see, "sectors": sectors}
 
+
 # ════════════════════════════════════════════════════════════
 # ENDPOINTS — CONTRATOS
 # ════════════════════════════════════════════════════════════
@@ -1894,10 +1839,11 @@ async def status_job(job_id: str, current_user: User = Depends(get_current_user)
     return {"job_id": job_id, "status": job["status"], "result": job.get("result"),
             "error": job.get("error"), "contrato_id": job.get("contrato_id")}
 
+
 # ════════════════════════════════════════════════════════════
-# ✅ ENDPOINT CORRIGIDO v4.9 — /contratos/listar
-# CORREÇÃO PRINCIPAL: usuário sempre vê seus próprios contratos
-# independente de ter permissões de visibilidade configuradas ou não.
+# ENDPOINT — /contratos/listar
+# CORREÇÃO v4.9: usuário sempre vê seus próprios contratos
+# independente de ter permissões de visibilidade configuradas.
 # ════════════════════════════════════════════════════════════
 @app.get("/contratos/listar", tags=["Contratos"])
 async def listar_contratos(
@@ -1919,7 +1865,6 @@ async def listar_contratos(
             query = query.filter(Contract.user_id == analyst_id)
         contratos = query.order_by(Contract.created_at.desc()).all()
     else:
-        # Busca permissões de visibilidade do usuário
         perms = db.query(UserVisibilityPermission).filter(
             UserVisibilityPermission.viewer_id == current_user.id).all()
         target_ids_usuario = set()
@@ -1931,7 +1876,6 @@ async def listar_contratos(
                 slugs_setor.add(p.sector_slug)
 
         if analyst_id:
-            # Visualizando contratos de outro analista específico
             if analyst_id != current_user.id and analyst_id not in target_ids_usuario:
                 analista_obj = db.query(User).filter(User.id == analyst_id).first()
                 if analista_obj:
@@ -1949,9 +1893,7 @@ async def listar_contratos(
         else:
             conditions = []
 
-            # ✅ CORREÇÃO CRÍTICA v4.9:
-            # Regra 1 — sempre inclui contratos PRÓPRIOS do usuário no seu setor
-            # (independente de permissões configuradas)
+            # Regra 1 — sempre inclui contratos PRÓPRIOS no setor do usuário
             if meus_setores:
                 conditions.append(
                     and_(
@@ -1960,7 +1902,7 @@ async def listar_contratos(
                     )
                 )
 
-            # Regra 2 — contratos de outros usuários com permissão explícita de usuário
+            # Regra 2 — contratos de outros usuários com permissão explícita
             if target_ids_usuario and meus_setores:
                 conditions.append(
                     and_(
@@ -2058,6 +2000,7 @@ async def excluir_contrato(contrato_id: int, db: Session = Depends(get_db),
     db.delete(contrato); db.commit()
     return {"detail": f"Contrato '{nome}' excluído"}
 
+
 # ════════════════════════════════════════════════════════════
 # ENDPOINT — CHAT
 # ════════════════════════════════════════════════════════════
@@ -2122,6 +2065,7 @@ async def perguntar_contrato(
         "setor_nome":  config_setor['nome'],
         "contrato_id": contrato.id
     }
+
 
 # ════════════════════════════════════════════════════════════
 # ENDPOINTS DO SISTEMA
