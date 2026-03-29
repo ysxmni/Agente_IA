@@ -111,12 +111,15 @@ except Exception as e:
     client = None
     MODELO_ATIVO = None
 
-
 # ════════════════════════════════════════════════════════════
 # PROMPTS ESPECIALIZADOS POR SETOR
 # ════════════════════════════════════════════════════════════
-
-PROMPT_JURIDICO_RESUMO = """Você é um assistente jurídico especializado em análise de contratos.
+PROMPTS_SETORES = {
+    "juridico": {
+        "nome": "Jurídico",
+        "icon": "scale",
+        "cor": "#3b82f6",
+        "resumo": """Você é um assistente jurídico especializado em análise de contratos.
 
 ════════════════════════════════════════════
 REGRAS ABSOLUTAS — LEIA ANTES DE COMEÇAR
@@ -174,9 +177,8 @@ ANÁLISE JURÍDICA DO CONTRATO
 ════════════════════════════════════════════
 
 CONTRATO A ANALISAR:
-{texto}"""
-
-PROMPT_JURIDICO_PERGUNTAS = """Você é um assistente jurídico especializado em contratos.
+{texto}""",
+        "perguntas": """Você é um assistente jurídico especializado em contratos.
 
 REGRAS:
 1. Responda SOMENTE com base no texto do contrato fornecido abaixo.
@@ -191,9 +193,13 @@ PERGUNTA:
 {pergunta}
 
 Responda citando a cláusula exata de cada informação."""
+    },
 
-
-PROMPT_SUPRIMENTOS_RESUMO = """Você é um especialista em gestão de suprimentos e compras.
+    "suprimentos": {
+        "nome": "Suprimentos",
+        "icon": "package",
+        "cor": "#10b981",
+        "resumo": """Você é um especialista em gestão de suprimentos e compras.
 
 ════════════════════════════════════════════
 REGRAS ABSOLUTAS — LEIA ANTES DE COMEÇAR
@@ -250,9 +256,8 @@ ANÁLISE DE SUPRIMENTOS E COMPRAS
 ════════════════════════════════════════════
 
 CONTRATO A ANALISAR:
-{texto}"""
-
-PROMPT_SUPRIMENTOS_PERGUNTAS = """Você é um especialista em compras e gestão de suprimentos.
+{texto}""",
+        "perguntas": """Você é um especialista em compras e gestão de suprimentos.
 
 REGRAS:
 1. Responda SOMENTE com base no texto do contrato fornecido abaixo.
@@ -267,300 +272,335 @@ PERGUNTA:
 {pergunta}
 
 Responda citando a cláusula ou item exato de cada informação."""
+    },
 
-
-PROMPT_GESTAO_RESUMO = """Você é um especialista em gestão operacional de contratos da Opersan.
+"gestaodecontratos": {
+    "nome": "Gestão de Contratos",
+    "icon": "folder-kanban",
+    "cor": "#f59e0b",
+    "resumo": """Você é um especialista em gestão operacional de contratos da empresa Opersan.
 
 ════════════════════════════════════════════
 ❌ PROIBIÇÕES ABSOLUTAS — NUNCA FAÇA ISSO
 ════════════════════════════════════════════
-❌ NUNCA escreva "não consta", "não especificado", "não identificado" ou
-   qualquer variação. Se um dado não constar, simplesmente OMITA o campo.
-❌ NUNCA crie seções como "Pontos sem informação" ou "Riscos identificados".
-❌ NUNCA ignore páginas do PDF por serem tabelas, listas ou planilhas.
-❌ NUNCA resuma os anexos em uma linha. Cada anexo exige um bloco completo.
-❌ NUNCA pare de ler antes da última página do documento.
-❌ NUNCA repita o mesmo item mais de uma vez.
-❌ NUNCA continue escrevendo após o marcador ═══FIM═══
-❌ NUNCA misture obrigações da CONTRATADA com obrigações da CONTRATANTE.
-❌ NUNCA cite "Anexo I" ou "Anexo II" sem verificar o título real do anexo
-   no documento. Citar o anexo errado invalida a referência.
-❌ NUNCA liste obrigações rotineiras do cliente na seção 8. Seção 8 é
-   exclusivamente para custos ADICIONAIS ou EXCEPCIONAIS que podem surgir
-   além do valor mensal contratado e impactar financeiramente a Opersan.
-❌ NUNCA omita valores financeiros — preço mensal, Opex Fixo, Opex Variável,
-   Capex, multas percentuais e valores absolutos são informações críticas.
+NUNCA crie seções chamadas "Pontos sem informação",
+"Informações não encontradas", "Campos não preenchidos",
+"Riscos identificados" ou variações. Se um dado não constar, simplesmente omita o campo.
+NUNCA ignore páginas por serem tabelas, listas ou planilhas.
+NUNCA resuma os anexos em uma linha. Cada anexo exige um bloco completo.
+NUNCA pare de ler antes da última página do documento.
+NUNCA repita o mesmo item mais de uma vez.
+NUNCA continue escrevendo após o marcador.
+NUNCA adicione letras nas clausulas “3.2.a”
+═══FIM═══
+ NUNCA misture obrigações da Opersan (CONTRATADA) com obrigações
+do cliente (CONTRATANTE). Este é o erro mais grave.
+   → Antes de extrair qualquer item, leia o cabeçalho da cláusula
+     ou seção e identifique a quem ela se refere.
+   → Se o sujeito da frase for o cliente/CONTRATANTE, o item vai
+     para a seção 3, não para a seção 2.
+   → Cláusulas de obrigações do cliente e da Opersan são diferentes
+     e geralmente estão em subitens distintos. Nunca misture.
+NUNCA cite um anexo pelo número ou título sem antes confirmar o título EXATO lendo o cabeçalho da página onde ele começa. Nomes como "Anexo I", "Anexo A" ou "Proposta Técnica" podem variar de contrato para contrato — sempre confirme no documento.
+NUNCA confunda documentos internos de um anexo com anexos independentes do contrato. Exemplo: uma tabela chamada "Anexo I" dentro da Proposta Técnica é um item interno desse documento, não um anexo formal do contrato. Leia o índice do contrato para saber quais são os anexos formais.
+NUNCA liste na seção 8 custos operacionais rotineiros já incluídos no preço mensal (EPI, salários, produtos químicos previstos, relatórios de rotina, análises regulares). A seção 8 é EXCLUSIVAMENTE para situações que geram custo ADICIONAL ou INESPERADO além do valor contratado.
+NUNCA inclua na seção 9 (Vedações da Opersan) itens que são vedações ao cliente ou obrigações de terceiros. Verifique sempre o sujeito de cada cláusula antes de incluir.
+NUNCA escreva "não especificado", "não consta" ou "não há informação". Se dado não existe no contrato, simplesmente omita o campo inteiro.
+NUNCA crie itens OU clausulas que não tenham no contrato OU anexo.
 
 ════════════════════════════════════════════
 ✅ REGRAS OBRIGATÓRIAS
 ════════════════════════════════════════════
-1. Este PDF pode conter o contrato principal E seus anexos em sequência,
-   podendo ter 30, 50, 70 páginas ou mais. LEIA TODAS SEM EXCEÇÃO.
+1. Este PDF pode conter o contrato principal E seus anexos em
+   sequência, com 30, 50, 70 páginas ou mais. LEIA TUDO SEM EXCEÇÃO.
 2. Extraia SOMENTE informações literalmente escritas no documento.
-3. Após cada informação, cite a origem: [Cláusula X], [Item Y.Z],
-   [Anexo X – Título Real – Item Y], [Tabela Z do Anexo X].
-   ⚠️ Use o TÍTULO REAL de cada anexo conforme consta no documento.
-4. Se um dado não constar no documento, simplesmente NÃO mencione o campo.
-5. Use linguagem clara, objetiva e em português.
-6. Ao terminar o item 12, escreva ═══FIM═══ e PARE imediatamente.
-7. Capture obrigações tanto das cláusulas formais quanto de cláusulas
-   espalhadas no corpo do contrato (ex: 3.5, 3.9, 3.10, 3.14, 3.16,
-   3.17, 3.18, 3.19, 3.20 e equivalentes).
-8. Quando uma cláusula contiver EXCEÇÕES ou CONDIÇÕES (ex: "salvo se...",
-   "desde que...", "exceto quando..."), inclua essa exceção no item.
-9. VALORES FINANCEIROS são obrigatórios — nunca os omita. Busque no
-   Quadro Resumo, nas Condições Gerais e nos Anexos Comerciais.
+   NUNCA infira, intérprete ou complete informações ausentes.
+3. Após cada informação, cite a origem exata:
+   [Cláusula X], [Item Y.Z], [Anexo TÍTULO – Item Y].
+   Use sempre o título real do documento/anexo.
+4. Se um dado não constar no documento, simplesmente NÃO mencione
+   aquele campo.
+5. Substitua "CONTRATADA" ou “Empresa” por "Opersan" e "CONTRATANTE" pelo nome real do cliente em todo o resumo.
+6. Ao terminar o item 11, PARE imediatamente.
+7. Quando uma cláusula contiver EXCEÇÕES, CONDIÇÕES ou RESSALVAS relevantes para a operação (ex: "salvo se...", "exceto quando...", "desde que...", "mediante autorização prévia..."), inclua sempre a exceção junto ao item. A equipe de operação precisa conhecer os limites e condições de cada obrigação, não apenas o enunciado.
+8. Obrigações espalhadas fora dos blocos formais de obrigações (ex: cláusulas que tratam de investimentos, prazos, manutenção, paralisações, licenças) devem ser capturadas normalmente, desde que claramente atribuídas à Opersan.
+9. Quando o contrato for composto por mais de um documento (ex:
+   Quadro Resumo + Condições Gerais + Proposta Técnica), mantenha
+   coerência nas citações, identificando sempre de qual documento
+   cada item foi extraído. NUNCA inventar clausulas, itens ou anexos.
 
 ════════════════════════════════════════════
 ⚠️ PASSO OBRIGATÓRIO ANTES DE ESCREVER
 ════════════════════════════════════════════
-Antes de iniciar o resumo, percorra visualmente TODAS as páginas e
-registre internamente (sem escrever para o usuário):
-- Número total de páginas
-- Onde termina o corpo do contrato
-- Título EXATO e localização de CADA anexo
-- Quais páginas contêm tabelas, planilhas de preços, listas de
-  equipamentos ou especificações técnicas
-- Quais cláusulas tratam de obrigações da CONTRATADA
-- Quais cláusulas tratam de obrigações da CONTRATANTE
-- Todos os valores financeiros mencionados (preços, multas, seguros)
+Antes de iniciar o resumo, percorra TODAS as páginas e registre
+internamente (sem escrever para o usuário) as seguintes informações:
+ 
+A) ESTRUTURA DO PDF:
+   - Número total de páginas
+   - Quais documentos compõem o PDF (ex: Quadro Resumo, Condições
+     Gerais, Proposta Técnica, Proposta Comercial etc.) e em que
+     páginas cada um começa e termina.
 
+B) MAPEAMENTO DOS ANEXOS:
+   - Leia o cabeçalho de cada anexo e anote o TÍTULO EXATO
+   - Verifique se o contrato tem um item que lista os anexos formais
+     (ex: "Integram este Contrato os seguintes documentos...") e use
+     essa lista como referência oficial de anexos
+   - Identifique seções ou tabelas INTERNAS de cada anexo que possam
+     ser confundidas com anexos independentes
+ 
+C) MAPEAMENTO DAS OBRIGAÇÕES:
+   - IDENTIFIQUE quais cláusulas/itens contêm OBRIGAÇÕES da OPERSAN/CONTRATADA
+   - IDENTIFIQUE quais cláusulas/itens contêm OBRIGAÇÕES do CLIENTE
+   - IDENTIFIQUE OBRIGAÇÕES da Opersan que estão FORA dos blocos formais de obrigações (espalhadas ao longo do contrato)
+   - Para cada obrigação, verifique se há exceções ou condições que alteram o sentido ou o limite da obrigação
+ 
+D) PONTOS DE ATENÇÃO FINANCEIRA:
+   - IDENTIFIQUE situações que podem gerar custo adicional além do valor mensal contratado (ex: equipamentos em fim de vida útil, serviços extras, multas, rescisão com investimentos pendentes, entre outros)
 Somente após essa varredura completa, escreva o resumo abaixo.
 
 ════════════════════════════════════════════
 RESUMO OPERACIONAL DO CONTRATO
 ════════════════════════════════════════════
-
+ 
 CABEÇALHO
 ──────────────────────────────────────────
-Nome do Contrato : [objeto do contrato + cláusula]
-Cliente          : [nome completo + CNPJ + cláusula]
-CONTRATADA       : [nome(s) + CNPJ(s) + cláusula]
-Vigência         : [data de início, prazo total e data de término + cláusula]
-Unidade / Local  : [endereço completo + cláusula]
-Contato Cliente  : [nome, e-mail, telefone + cláusula]
-Contato Opersan  : [nome(s), e-mail(s), telefone + cláusula]
-Data de Assinatura: [+ cláusula]
-
+Nome do Contrato: [objeto do contrato + cláusula/item]
+Cliente: [nome completo + cláusula/item]
+Vigência: [início e término + cláusula/item]
+Unidade / Local de prestação de serviço: [endereço/site + cláusula/item]
+Responsável Interno: [nome/cargo + cláusula/item]
+Valor mensal: [valor fixo + variável se houver + cláusula/item]
+Reajuste: [índice, periodicidade, data-base + cláusula/item]
+ 
 ──────────────────────────────────────────
 1. OBJETO DO CONTRATO
 ──────────────────────────────────────────
-[Descrição direta e completa do que foi contratado + cláusula]
-
+[Descrição simples e direta do que foi contratado + cláusula/item]
+ 
 ──────────────────────────────────────────
-2. VALORES E CONDIÇÕES FINANCEIRAS 💰
+2. ESCOPO DOS SERVIÇOS / OBRIGAÇÕES DA OPERSAN
 ──────────────────────────────────────────
-⚠️ TÓPICO CRÍTICO — extraia TODOS os valores do contrato e anexos.
+INSTRUÇÃO CRÍTICA — LEIA ANTES DE EXTRAIR QUALQUER ITEM:
 
-- Valor dos Investimentos (Capex):
-  → Valor total: [R$ X + cláusula]
-  → Parcelas: [quantidade x valor unitário + cláusula]
-
-- Remuneração Mensal dos Serviços (Opex):
-  → Tarifa Fixa (Opex Fixo): [R$ X/mês — inclui: descrição + cláusula]
-  → Tarifa Variável (Opex Variável): [R$ X/unidade — base de cálculo + cláusula]
-
-- Forma de pagamento: [condições, datas de vencimento permitidas + cláusula]
-- Prazo de emissão da Nota Fiscal: [+ cláusula]
-- Reajuste: [índice, periodicidade, data-base + cláusula]
-- O que está INCLUÍDO no preço: [resumo + cláusula]
-- O que NÃO está incluído no preço: [+ cláusula]
-- Seguro obrigatório: [tipo, valor mínimo por cobertura + cláusula]
-- Condições de reequilíbrio econômico-financeiro: [gatilhos + cláusula]
-
+Lista clara das atividades que são de RESPONSABILIDADE da OPERSAN, separadas por áreas técnicas se necessários (manutenção, elétrica, limpeza, laboratório etc.).
+ 
+• Inclua APENAS obrigações cujo sujeito seja expressamente a
+  Opersan (CONTRATADA). NÃO inclua obrigações do cliente.
+• Verifique o cabeçalho de cada cláusula/seção antes de extrair.
+  Cláusulas de obrigações do cliente geralmente estão em subitens
+  numerados separadamente (ex: 4.1, 4.2) — não as inclua aqui.
+• Capture obrigações tanto dos blocos formais de obrigações quanto
+  de cláusulas espalhadas ao longo do contrato (ex: cláusulas sobre
+  investimentos, manutenção, paralisações, licenças, relatórios).
+• Quando a obrigação tiver exceção ou condição relevante para a
+  operação, inclua a exceção junto ao item. Nunca omita condições
+  que alteram o alcance ou limite de uma obrigação.
+ 
+Separe por área técnica quando houver (ex: Operação, Manutenção,
+Relatórios, Segurança, Recursos Humanos, Licenças):
+- [atividade, com exceções se houver] — [cláusula/item]
+ 
 ──────────────────────────────────────────
-3. ESCOPO DOS SERVIÇOS / OBRIGAÇÕES DA CONTRATADA (OPERSAN)
+3. OBRIGAÇÕES DO CLIENTE
 ──────────────────────────────────────────
-⚠️ Inclua APENAS obrigações atribuídas expressamente à CONTRATADA.
-Separe por área técnica quando houver distinção clara.
-Quando houver exceção ou condição relevante, inclua junto ao item.
 
-- [atividade] — [cláusula/item]
+Lista das RESPONSABILIDADES e FORNECIMENTOS que cabem ao CLIENTE
 
-──────────────────────────────────────────
-4. OBRIGAÇÕES DO CLIENTE (CONTRATANTE)
-──────────────────────────────────────────
-⚠️ Inclua APENAS obrigações atribuídas expressamente ao CLIENTE.
-Verifique tanto as Condições Gerais quanto os Anexos.
-
+Inclua APENAS obrigações cujo sujeito seja expressamente o
+CLIENTE/CONTRATANTE. Verifique o cabeçalho de cada cláusula.
+Capture tanto os blocos formais quanto obrigações espalhadas.
+ 
 - [obrigação] — [cláusula/item]
+ 
+──────────────────────────────────────────
+4. MÃO DE OBRA PREVISTA NO CONTRATO 👷
+──────────────────────────────────────────
+Este é um tópico crítico. Descrever claramente: Cargos/Funções previstas (ex: operador, técnico de manutenção, analista de laboratório etc.), Quantidade de profissionais por cargo, Frequência/ escala de trabalho (ex: 8h/dia, 5x por semana, plantões etc.) Penalidades em caso de ausência (ex: “Ausências não cobertas podem gerar glosas proporcionais pelo cliente”).
 
-──────────────────────────────────────────
-5. MÃO DE OBRA PREVISTA NO CONTRATO 👷
-──────────────────────────────────────────
-⚠️ TÓPICO CRÍTICO — controlar ausências e coberturas para evitar glosas.
+Importante: A operação deve controlar ausências, substituições e coberturas para evitar glosas.
 
-- Cargos / Funções e quantidades: [liste cada cargo com qtd + cláusula]
-- Escala / Frequência por cargo: [+ cláusula]
-- Qualificações obrigatórias (NRs, habilitações, cursos): [+ cláusula]
-- Uniformes e EPIs exigidos: [+ cláusula]
-- Benefícios obrigatórios (transporte, refeição, saúde): [+ cláusula]
-- Documentos obrigatórios (PPRA, PCMSO, ASO, etc.): [+ cláusula]
-- Substituição de profissional: [prazo e condições + cláusula]
-
+TÓPICO CRÍTICO — controlar ausências e coberturas é essencial
+para evitar glosas. Cite apenas o item onde a informação realmente
+consta. Não cite uma cláusula de uniformes para descrever cargos.
+ 
+- Cargos / Funções: [liste cada cargo/função + cláusula/item]
+- Quantidade por cargo: [liste quantidade de cada cargo/função + cláusula/item]
+- Escala / Frequência: [liste a escala/frequência de trabalho + cláusula/item]
+- Penalidades em caso de ausência: [somente se existir no contrato] + [liste ausências para não gerar glosas]
+ 
 ──────────────────────────────────────────
-6. PRODUTOS QUÍMICOS 🧪
+5. PRODUTOS QUÍMICOS 🧪
 ──────────────────────────────────────────
-- Responsável pela aquisição e fornecimento: [+ cláusula]
-- Produtos previstos (busque nos anexos técnicos):
-  → [Nome] | Quantidade máxima: [qtd/período] | [cláusula/item]
+- Responsável pela aquisição: [Opersan / Cliente + cláusula/item]
+- Produtos previstos (busque também nos anexos):
+  → [Nome] | Quantidade: [qtd/período ou qtd/mês] | Obs relevantes: [+ cláusula/item]
   → [repita para cada produto encontrado]
-
-⚠️ Consumo acima do contratado pode gerar impacto financeiro.
-⚠️ Verificar se algum produto exige licença de órgão de segurança.
-
+ 
+Não usar produtos diferentes dos previstos. Se o consumo ultrapassar a quantidade contratada, o custo excedente pode gerar impacto financeiro. Solicitar autorização prévia antes de qualquer alteração.
+ 
 ──────────────────────────────────────────
-7. SERVIÇOS E ITENS FORA DO ESCOPO ⚠️
+6. SERVIÇOS FORA DO ESCOPO ⚠️
 ──────────────────────────────────────────
-⚠️ Busque esta lista nos ANEXOS (especialmente proposta técnica).
-Leia todas as páginas do anexo para garantir que nenhum item foi omitido.
 
-- [item excluído] — [cláusula/item do anexo correto]
-
+Lista do que não faz parte do contrato para evitar execução indevida.
+Esta lista geralmente está nos ANEXOS (proposta técnica ou
+similar). Leia todas as páginas do anexo correspondente para não
+omitir nenhum item. Cite o título real do anexo e o item correto.
+ 
+- [item excluído do escopo] — [título real do anexo – item]
+ 
 ──────────────────────────────────────────
-8. PRAZOS E CRONOGRAMA
+7. PRAZOS E NÍVEIS DE SERVIÇO (SLAs)
 ──────────────────────────────────────────
-- Data de início dos serviços de O&M: [+ cláusula]
-- Prazo de mobilização: [+ cláusula]
-- Vigência total: [+ cláusula]
-- Prazo de rescisão imotivada (aviso prévio): [+ cláusula]
-- Cronograma de implantação dos investimentos: [etapas e prazos + cláusula]
-- Prazo da operação assistida inicial: [+ cláusula]
-- Prazo de garantia de equipamentos/materiais instalados: [+ cláusula]
-- Relatórios obrigatórios e periodicidade: [liste + cláusula]
-- Marcos intermediários relevantes: [+ cláusula]
+Informações sobre prazos de atendimento, frequências de execução e tempos de resposta.
 
+- Data de início dos serviços: [+ cláusula/item]
+- Prazo de mobilização: [+ cláusula/item]
+- Vigência total: [+ cláusula/item]
+- Marcos intermediários: [etapas, prazos + cláusula/item]
+- Frequência das atividades: [diária, semanal, mensal + cláusula]
+- Tempo de resposta / atendimento: [+ cláusula/item]
+- Relatórios obrigatórios: [nome, frequência, destinatário + item]
+- KPIs e indicadores: [+ cláusula/item, somente se existir]
+ 
 ──────────────────────────────────────────
-9. CUSTOS ADICIONAIS E RESPONSABILIDADES FINANCEIRAS EXCEPCIONAIS
+8. CUSTOS ADICIONAIS E SITUAÇÕES DE RISCO FINANCEIRO
 ──────────────────────────────────────────
-⚠️ INSTRUÇÃO CRÍTICA — Liste APENAS situações em que pode surgir um
-custo EXTRA ou INESPERADO além do valor mensal contratado. Exemplos
-válidos: tratamento de efluentes fora de parâmetros, caminhão vácuo
-adicional além da franquia contratada, análise laboratorial SPOT fora
-do escopo, substituição de equipamento em fim de vida útil,
-reembolso de multa trabalhista imputada à CONTRATANTE.
-NÃO liste aqui: custos já inclusos no Opex (EPI, salários, relatórios
-mensais, produtos químicos dentro do previsto).
+Definição clara de quem arca com custos extras.
 
-- [descrição do custo adicional] | Responsável: [Opersan/Cliente] | [cláusula]
-
+INSTRUÇÃO CRÍTICA — esta seção NÃO é uma lista de todos os
+custos do contrato. Liste APENAS situações em que pode surgir um
+custo EXTRA ou INESPERADO além do valor mensal contratado — aqueles
+que a equipe precisa conhecer para evitar surpresas financeiras.
+ 
+Exemplos do que DEVE entrar:
+✓ Equipamentos/materiais que atingiram fim de vida útil e são
+  responsabilidade do cliente, mas que a Opersan pode fornecer
+  mediante negociação adicional de escopo (SPOT)
+✓ Serviços fora do escopo que a Opersan pode ofertar como SPOT
+✓ Caminhões vácuo ou análises acima da franquia contratada
+✓ Tratamento de efluentes fora dos parâmetros contratuais, quando
+  autorizado pelo cliente → cliente arca com custo adicional
+✓ Reembolso de multas trabalhistas/judiciais ao cliente
+✓ Penalidades financeiras por rescisão (com ou sem investimentos
+  pendentes)
+✓ Qualquer situação que gera cobrança adicional sobre o Preço
+ 
+Exemplos do que NÃO deve entrar:
+✗ EPI, salários e benefícios (incluídos no preço mensal)
+✗ Produtos químicos dentro do consumo previsto (incluídos)
+✗ Relatórios mensais e análises de rotina (incluídos)
+✗ Qualquer custo já coberto pelo preço mensal contratado
+ 
+- [descrição da situação] | Responsável: [Opersan/Cliente]
+  | [cláusula/item]
+ 
 ──────────────────────────────────────────
-10. PENALIDADES, RESCISÃO E RISCOS OPERACIONAIS
+9. PENALIDADES E RISCOS OPERACIONAIS
 ──────────────────────────────────────────
-Penalidades contratuais:
-- Hipótese: [descrição] — [cláusula]
-  Valor/Percentual: [valor ou % — sempre sobre qual base]
-  Condição de aplicação: [prazo de notificação, reincidência, etc.]
+Consequências práticas para descumprimentos de obrigações (Opersan ou Cliente).
 
-Hipóteses de rescisão antecipada motivada: [liste + cláusula]
-
-Rescisão imotivada — condições financeiras:
-- [descreva o que é devido em cada cenário: com/sem investimentos
-  pendentes, por qual parte + cláusula]
-
-Vedações (o que a CONTRATADA NÃO pode fazer):
-- [item] — [cláusula]
-
+- Hipótese: [descrição da situação] — [cláusula/item]
+  Valor/Percentual: [valor ou %]
+  Prazo para regularização: [se houver]
+  Reincidência: [se houver previsão]
+ 
+Vedações — o que a Opersan NÃO pode fazer:
+Inclua apenas vedações cujo sujeito seja a Opersan. Não inclua
+   vedações ao cliente nem obrigações de terceiros.
+- [item proibido] — [cláusula/item]
+ 
 Sigilo e confidencialidade:
-- [conforme contrato + cláusula]
-
-Proteção de dados:
-- [LGPD e demais obrigações + cláusula]
-
+- [obrigações de sigilo da Opersan + cláusula/item]
+ 
 ──────────────────────────────────────────
-11. CONTATOS E CANAIS INTERNOS
+10. CONTATOS E CANAIS
 ──────────────────────────────────────────
-- [Nome / Cargo / Empresa] — [e-mail] — [telefone] — [cláusula]
+Lista de responsáveis internos para dúvidas e autorizações.
 
+- [Nome / Cargo / Área / e-mail / telefone] — [responsabilidade]
+  — [cláusula ou item]
+ 
 ──────────────────────────────────────────
-12. ANEXOS E DOCUMENTOS IMPORTANTES
+11. ANEXOS E DOCUMENTOS IMPORTANTES
 ──────────────────────────────────────────
-⚠️ INSTRUÇÃO CRÍTICA:
-Volte às páginas finais e leia cada anexo com atenção antes de
-descrever. Confirme o TÍTULO EXATO de cada anexo conforme escrito
-no documento. Nunca suponha a numeração ou o título.
+Exemplo: Lista de equipamentos, layouts, checklists etc.
 
-Para cada anexo encontrado, preencha OBRIGATORIAMENTE o modelo abaixo.
-Nenhum anexo pode ser ignorado ou resumido em uma linha.
-Máximo de 10 anexos. Após o último, escreva ═══FIM═══ e PARE.
-
+INSTRUÇÃO CRÍTICA:
+Volte às páginas dos anexos e leia cada um com atenção total.
+ 
+ANTES de nomear qualquer anexo:
+1. Verifique se o contrato lista os anexos formais em alguma
+   cláusula (ex: "Integram este Contrato os seguintes documentos").
+   Use essa lista como referência oficial.
+2. Leia o cabeçalho de cada anexo e anote o TÍTULO EXATO.
+3. Nunca assuma numeração ou título — confirme no documento.
+4. Distingue os anexos formais do contrato dos documentos internos
+   que existem DENTRO de um anexo (tabelas, sub-anexos etc.).
+ 
+Para cada anexo formal do contrato, preencha OBRIGATORIAMENTE
+o modelo abaixo. Nenhum anexo pode ser ignorado ou resumido
+em uma linha. Após o último anexo PARE.
+ 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-ANEXO [número/letra] — [Título EXATO conforme o documento]
+ANEXO [número/letra] — [TÍTULO EXATO conforme o documento]
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 → Finalidade: [para que serve este anexo no contrato]
-→ Páginas: [ex: pág. 18 a 25]
+→ Páginas: [ex: pág. 45 a 52]
 → Conteúdo detalhado:
-   • [Se tabela de preços: todos os itens, valores e condições]
-   • [Se lista de equipamentos: nome, quantidade, responsável por cada item]
-   • [Se produtos químicos: nome, dosagem máxima, frequência]
-   • [Se cronograma: etapas, prazos e responsáveis]
-   • [Se especificação técnica: parâmetros, limites, unidades de medida]
-   • [Se planilha de análises: parâmetros monitorados, frequência, pontos
-     de amostragem e responsável]
-   • [Se definição de responsabilidades de manutenção: tabela completa,
-     item a item, com marcação Opersan vs. Cliente]
-   • [Se rol de relatórios: nome do relatório, frequência, canal de envio,
-     destinatário e quem assina]
-   • [Se qualidades de água/efluente: todos os parâmetros e limites]
-   • [Se memorial descritivo: resumo técnico do que representa]
+   • [Se proposta comercial: opções, valores, condições de pagamento]
+   • [Se proposta técnica: equipamentos, escopo, equipe, produtos
+     químicos, plano de análises, responsabilidades, exclusões,
+     garantias, e sub-anexos internos com seus itens]
+   • [Se lista de equipamentos: nome, quantidade, responsável]
+   • [Se tabela de preços: itens e valores]
+   • [Se produtos químicos: nome, dosagem, frequência]
+   • [Se cronograma: etapas, prazos, responsáveis]
+   • [Se especificação técnica: parâmetros, limites, unidades]
+   • [Se checklist ou roteiro: todos os pontos]
+   • [Se rol de relatórios: nome, frequência, destinatário, canal]
+   • [Se planilha de análises: parâmetros, pontos, frequência]
+   • [Se definição de responsabilidades: quem faz o quê, item a item]
+   • [Se parâmetros de qualidade: tabelas com limites por uso]
 → O que o gestor deve fazer com base neste anexo:
-   • [ação prática e objetiva — ex: "Confirmar mensalmente se os
-     relatórios foram emitidos dentro do prazo acordado"]
-
-[Repita o bloco acima para CADA anexo encontrado, sem exceção]
-
-═══FIM═══"""
-
-
-PROMPT_GESTAO_PERGUNTAS = """Você é um especialista em gestão operacional de contratos da Opersan.
-
+   • [ação prática e objetiva]
+ 
+[Repita o bloco acima para CADA anexo formal encontrado]
+ """,
+ 
+    "perguntas": """Você é um especialista em gestão operacional de contratos da empresa Opersan.
+ 
 REGRAS:
 1. Responda SOMENTE com base no contrato abaixo, incluindo
    o corpo do contrato E todos os seus anexos.
 2. Cite sempre a origem exata: [Cláusula X], [Item Y.Z] ou
-   [Anexo X – Título Real do Anexo – Item Y].
-   ⚠️ Use o título REAL do anexo conforme consta no documento.
-3. Se não encontrar a informação no contrato:
+   [Título real do Anexo – Item Y].
+   Use sempre o TÍTULO REAL do documento/anexo — nunca suponha.
+3. Substitua "CONTRATADA" por "Opersan" e "CONTRATANTE" pelo
+   nome real do cliente nas respostas.
+4. Se não encontrar a informação:
    "Essa informação não consta no contrato analisado."
-4. NUNCA especule. Linguagem simples e direta.
-5. Para equipamentos, produtos químicos, especificações técnicas e
-   valores financeiros, priorize os dados dos ANEXOS.
-6. Ao citar obrigações, identifique sempre se é obrigação da
-   CONTRATADA (Opersan) ou da CONTRATANTE (cliente) antes de responder.
-7. Ao citar valores financeiros, sempre informe a base de cálculo
-   (ex: "10% do valor mensal previsto na cláusula 6.2").
-
+5. NUNCA especule. Use linguagem simples e direta.
+6. Para equipamentos, produtos químicos e especificações técnicas,
+   priorize os dados dos ANEXOS.
+7. Ao responder sobre obrigações, identifique sempre se é
+   obrigação da Opersan ou do cliente, verificando o sujeito
+   da cláusula antes de responder.
+8. Quando a resposta envolver uma regra com exceção ou condição
+   relevante (ex: "salvo se...", "exceto quando...", "desde que..."),
+   inclua sempre a exceção — ela pode ser decisiva para a operação.
+ 
 CONTRATO:
 {contexto}
-
+ 
 PERGUNTA:
 {pergunta}
+ 
+Responda citando a cláusula, item ou título real do anexo,
+identificando sempre de qual documento cada informação foi extraída."""
+}
 
-Responda citando a cláusula, item ou anexo exato (com título real do anexo)."""
-
-
-PROMPTS_SETORES = {
-    "juridico": {
-        "nome":      "Jurídico",
-        "icon":      "scale",
-        "cor":       "#3b82f6",
-        "resumo":    PROMPT_JURIDICO_RESUMO,
-        "perguntas": PROMPT_JURIDICO_PERGUNTAS,
-    },
-    "suprimentos": {
-        "nome":      "Suprimentos",
-        "icon":      "package",
-        "cor":       "#10b981",
-        "resumo":    PROMPT_SUPRIMENTOS_RESUMO,
-        "perguntas": PROMPT_SUPRIMENTOS_PERGUNTAS,
-    },
-    "gestaodecontratos": {
-        "nome":      "Gestão de Contratos",
-        "icon":      "folder-kanban",
-        "cor":       "#f59e0b",
-        "resumo":    PROMPT_GESTAO_RESUMO,
-        "perguntas": PROMPT_GESTAO_PERGUNTAS,
-    },
 }
 
 
@@ -841,7 +881,6 @@ def get_db():
     finally:
         db.close()
 
-
 # ════════════════════════════════════════════════════════════
 # AUTENTICAÇÃO
 # ════════════════════════════════════════════════════════════
@@ -868,7 +907,6 @@ async def get_current_admin_user(
     if user.role != 'admin':
         raise HTTPException(status_code=403, detail="Requer permissão de administrador.")
     return user
-
 
 # ════════════════════════════════════════════════════════════
 # OPERAÇÕES DE JOB
@@ -934,7 +972,6 @@ def _limpar_jobs_antigos():
     finally:
         db.close()
 
-
 # ════════════════════════════════════════════════════════════
 # FUNÇÕES AUXILIARES
 # ════════════════════════════════════════════════════════════
@@ -987,15 +1024,14 @@ def get_setores_permitidos(user: User, db: Session) -> List[str]:
         if slug and slug not in setores:
             setores.append(slug)
 
-    # Fallback pelo campo role (string) do usuário —
-    # garante que se o user.role não foi mapeado via roles[], ainda funciona
+    # ── NOVO: fallback pelo campo role (string) do usuário ──────────────
+    # Garante que se o user.role não foi mapeado via roles[], ainda funciona
     if not setores and user.role and user.role.lower() not in ("admin", "user"):
         slug_role = _slug_setor(user.role)
         if slug_role:
             setores.append(slug_role)
 
     return setores or ["juridico"]
-
 
 # ════════════════════════════════════════════════════════════
 # EXTRAÇÃO DE PDF
@@ -1075,7 +1111,6 @@ def extrair_texto_pdf(conteudo: bytes) -> str:
     if erro:
         raise HTTPException(status_code=400, detail=erro)
     return texto
-
 
 # ════════════════════════════════════════════════════════════
 # CONFIGURAÇÃO PADRÃO DO GEMINI
@@ -1506,7 +1541,6 @@ class SetUserVisibilityBody(BaseModel):
     target_ids:   List[int] = []
     sector_slugs: List[str] = []
 
-
 # ════════════════════════════════════════════════════════════
 # ENDPOINTS — AUTENTICAÇÃO
 # ════════════════════════════════════════════════════════════
@@ -1539,7 +1573,6 @@ async def read_users_me(current_user: Annotated[User, Depends(get_current_user)]
         "role":     current_user.role,
         "roles":    [{"id": r.id, "name": r.name} for r in current_user.roles]
     }
-
 
 # ════════════════════════════════════════════════════════════
 # ENDPOINTS — ADMINISTRAÇÃO DE USUÁRIOS
@@ -1586,18 +1619,21 @@ def update_user(user_id: int, user_data: UserUpdate, db: Session = Depends(get_d
     if user_data.password:
         db_user.hashed_password = hash_password(user_data.password)
 
-    # Toggle admin — atualiza o campo role e sincroniza o role "Admin" na tabela de roles
+    # ── TOGGLE ADMIN v4.9 ───────────────────────────────────────────────────
+    # Atualiza o campo role e sincroniza o role "Admin" na tabela de roles
     if user_data.role is not None:
         novo_role = user_data.role.lower()
         if novo_role not in ("admin", "user"):
             raise HTTPException(status_code=400, detail="Role deve ser 'admin' ou 'user'")
 
+        # Impede que o admin remova sua própria permissão de admin
         if novo_role != "admin" and db_user.id == current_user.id:
             raise HTTPException(status_code=400,
                                 detail="Você não pode remover sua própria permissão de administrador.")
 
         db_user.role = novo_role
 
+        # Sincroniza o role "Admin" no relacionamento user_roles
         admin_role = db.query(Role).filter(Role.name.ilike("admin")).first()
         if admin_role:
             tem_role_admin = any(r.id == admin_role.id for r in db_user.roles)
@@ -1608,6 +1644,7 @@ def update_user(user_id: int, user_data: UserUpdate, db: Session = Depends(get_d
 
     if user_data.role_ids is not None:
         roles_novos = db.query(Role).filter(Role.id.in_(user_data.role_ids)).all()
+        # Se o usuário é admin, garante que o role Admin permanece na lista
         if db_user.role == "admin":
             admin_role = db.query(Role).filter(Role.name.ilike("admin")).first()
             if admin_role and admin_role not in roles_novos:
@@ -1616,7 +1653,6 @@ def update_user(user_id: int, user_data: UserUpdate, db: Session = Depends(get_d
 
     db.commit(); db.refresh(db_user)
     return db_user
-
 
 # ════════════════════════════════════════════════════════════
 # ENDPOINTS — ADMINISTRAÇÃO DE ROLES
@@ -1659,7 +1695,6 @@ async def delete_role(role_id: int, db: Session = Depends(get_db),
     name = role.name
     db.delete(role); db.commit()
     return {"detail": f"Setor '{name}' deletado"}
-
 
 # ════════════════════════════════════════════════════════════
 # ENDPOINTS — PERMISSÕES DE VISIBILIDADE
@@ -1795,7 +1830,6 @@ async def minhas_permissoes(db: Session = Depends(get_db),
                                 "cor": avatar_color(target.id)})
     return {"viewer_id": current_user.id, "can_see": can_see, "sectors": sectors}
 
-
 # ════════════════════════════════════════════════════════════
 # ENDPOINTS — CONTRATOS
 # ════════════════════════════════════════════════════════════
@@ -1839,11 +1873,10 @@ async def status_job(job_id: str, current_user: User = Depends(get_current_user)
     return {"job_id": job_id, "status": job["status"], "result": job.get("result"),
             "error": job.get("error"), "contrato_id": job.get("contrato_id")}
 
-
 # ════════════════════════════════════════════════════════════
-# ENDPOINT — /contratos/listar
-# CORREÇÃO v4.9: usuário sempre vê seus próprios contratos
-# independente de ter permissões de visibilidade configuradas.
+# ✅ ENDPOINT CORRIGIDO v4.9 — /contratos/listar
+# CORREÇÃO PRINCIPAL: usuário sempre vê seus próprios contratos
+# independente de ter permissões de visibilidade configuradas ou não.
 # ════════════════════════════════════════════════════════════
 @app.get("/contratos/listar", tags=["Contratos"])
 async def listar_contratos(
@@ -1865,6 +1898,7 @@ async def listar_contratos(
             query = query.filter(Contract.user_id == analyst_id)
         contratos = query.order_by(Contract.created_at.desc()).all()
     else:
+        # Busca permissões de visibilidade do usuário
         perms = db.query(UserVisibilityPermission).filter(
             UserVisibilityPermission.viewer_id == current_user.id).all()
         target_ids_usuario = set()
@@ -1876,6 +1910,7 @@ async def listar_contratos(
                 slugs_setor.add(p.sector_slug)
 
         if analyst_id:
+            # Visualizando contratos de outro analista específico
             if analyst_id != current_user.id and analyst_id not in target_ids_usuario:
                 analista_obj = db.query(User).filter(User.id == analyst_id).first()
                 if analista_obj:
@@ -1893,7 +1928,9 @@ async def listar_contratos(
         else:
             conditions = []
 
-            # Regra 1 — sempre inclui contratos PRÓPRIOS no setor do usuário
+            # ✅ CORREÇÃO CRÍTICA v4.9:
+            # Regra 1 — sempre inclui contratos PRÓPRIOS do usuário no seu setor
+            # (independente de permissões configuradas)
             if meus_setores:
                 conditions.append(
                     and_(
@@ -1902,7 +1939,7 @@ async def listar_contratos(
                     )
                 )
 
-            # Regra 2 — contratos de outros usuários com permissão explícita
+            # Regra 2 — contratos de outros usuários com permissão explícita de usuário
             if target_ids_usuario and meus_setores:
                 conditions.append(
                     and_(
@@ -2000,7 +2037,6 @@ async def excluir_contrato(contrato_id: int, db: Session = Depends(get_db),
     db.delete(contrato); db.commit()
     return {"detail": f"Contrato '{nome}' excluído"}
 
-
 # ════════════════════════════════════════════════════════════
 # ENDPOINT — CHAT
 # ════════════════════════════════════════════════════════════
@@ -2065,7 +2101,6 @@ async def perguntar_contrato(
         "setor_nome":  config_setor['nome'],
         "contrato_id": contrato.id
     }
-
 
 # ════════════════════════════════════════════════════════════
 # ENDPOINTS DO SISTEMA
