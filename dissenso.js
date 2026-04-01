@@ -84,23 +84,32 @@ function _getUsuario() {
         return window.usuario;
     }
     // Prioridade 2: monta objeto a partir do localStorage
-    const role     = (localStorage.getItem("userRole") || "").toLowerCase();
-    const nome     = localStorage.getItem("userName") || "";
-    const token    = localStorage.getItem("userToken") || localStorage.getItem("token") || "";
-    const isAdmin  = role === "admin";
-    return {
-        nome,
-        role,
-        token,
-        isAdmin,
-        roles:            [],
-        setoresPermitidos: [],
-    };
+    const role    = (localStorage.getItem("userRole") || "").toLowerCase();
+    const nome    = localStorage.getItem("userName") || "";
+    const token   = localStorage.getItem("userToken") || localStorage.getItem("token") || "";
+    const isAdmin = role === "admin";
+    return { nome, role, token, isAdmin, roles: [], setoresPermitidos: [] };
 }
 
 function _getToken() {
     if (window.usuario && window.usuario.token) return window.usuario.token;
     return localStorage.getItem("userToken") || localStorage.getItem("token") || "";
+}
+
+// ─── LÊ O SETOR DO DOM (botões de setor já renderizados pelo script.js) ──────
+
+function _getSetoresDOMTexto() {
+    // Pega texto de todos os botões de setor do chat (ex: "Suprimentos", "Jurídico")
+    const btns = document.querySelectorAll(
+        ".chat-setor-btn, .chat-setor-badge-unico, #chatSetorButtons button, #chatSetorButtons [class*='setor']"
+    );
+    return Array.from(btns).map(b => (b.textContent || "").toLowerCase().trim());
+}
+
+function _setorTemSuprimentos(textos) {
+    return textos.some(t =>
+        t.includes("suprim") || t.includes("compra") || t.includes("estoque")
+    );
 }
 
 // ─── VERIFICAÇÃO DE ACESSO ────────────────────────────────────────────────────
@@ -109,27 +118,37 @@ function _usuarioPodeVerDissenso() {
     const u = _getUsuario();
     if (!u) return false;
 
-    // Admin tem acesso a tudo
+    // Admin sempre tem acesso
     if (u.isAdmin || u.role === "admin") return true;
 
-    // Verifica setoresPermitidos (se disponível via window.usuario)
+    // 1. Via window.usuario (quando script.js expuser o objeto)
     const setoresPermitidos = u.setoresPermitidos || [];
     const roles             = u.roles || [];
 
-    const temSuprimentosSetor = setoresPermitidos.some(s =>
+    if (setoresPermitidos.some(s =>
         s.includes("suprim") || s.includes("compra") || s.includes("estoque")
-    );
+    )) return true;
 
-    const temSuprimentosRole = roles.some(r =>
+    if (roles.some(r =>
         (r.name || "").toLowerCase().includes("suprim") ||
         (r.name || "").toLowerCase().includes("compra")
-    );
+    )) return true;
 
-    // Fallback: verifica o role string diretamente (localStorage)
+    // 2. Via role string do localStorage (quando role é o nome do setor)
     const roleStr = (u.role || "").toLowerCase();
-    const temSuprimentosRoleStr = roleStr.includes("suprim") || roleStr.includes("compra");
+    if (roleStr.includes("suprim") || roleStr.includes("compra")) return true;
 
-    return temSuprimentosSetor || temSuprimentosRole || temSuprimentosRoleStr;
+    // 3. Via DOM — botões de setor já renderizados pelo script.js
+    //    (funciona mesmo sem window.usuario, pois o script.js renderiza o DOM antes)
+    if (_setorTemSuprimentos(_getSetoresDOMTexto())) return true;
+
+    // 4. Via localStorage "userSetores" (salvo pelo _exposerDissenso abaixo)
+    try {
+        const setoresSalvos = JSON.parse(localStorage.getItem("userSetores") || "[]");
+        if (_setorTemSuprimentos(setoresSalvos.map(s => s.toLowerCase()))) return true;
+    } catch (_) {}
+
+    return false;
 }
 
 // ─── RENDER DO TOGGLE CHAT/DISSENSO ──────────────────────────────────────────
@@ -776,40 +795,107 @@ window._atualizarEstadoDissenso = _atualizarEstadoDissenso;
 window.DissensoState            = DissensoState;
 
 // ─── AUTO-INIT ROBUSTO ────────────────────────────────────────────────────────
-// CORREÇÃO v1.1: não depende mais de window.usuario.token para inicializar.
-// Verifica apenas se o chat-card existe e se há um token no localStorage.
-// A verificação de permissão (suprimentos/admin) já acontece dentro de
-// renderizarToggleModo() → _usuarioPodeVerDissenso().
 
 function _dissensoAutoInit() {
     if (!document.querySelector(".chat-card")) return false;
-
-    // Aguarda token no localStorage (populado pelo script.js após login)
     const token = localStorage.getItem("userToken") || localStorage.getItem("token") || "";
     if (!token) return false;
-
     if (document.getElementById("modoToggleWrap")) return true; // já existe
-
     renderizarToggleModo();
     return true;
 }
 
+// ─── BUSCA SETORES VIA API E RE-RENDERIZA ────────────────────────────────────
+// Para usuários comuns, o localStorage só guarda role="user".
+// Buscamos /users/me para obter os roles reais, salvamos em localStorage
+// e re-renderizamos o toggle se necessário.
+
+async function _carregarSetoresDoUsuario() {
+    const token = _getToken();
+    if (!token) return;
+
+    // Já tem dado de setor em cache desta sessão?
+    if (sessionStorage.getItem("dissensoSetoresCarregados")) return;
+
+    const API_URL = (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1")
+        ? "http://localhost:1500"
+        : "https://agente-ia-62sa.onrender.com";
+
+    try {
+        const res = await fetch(`${API_URL}/users/me`, {
+            headers: { Authorization: `Bearer ${token}` },
+            signal: AbortSignal.timeout(8000)
+        });
+        if (!res.ok) return;
+
+        const data = await res.json();
+        sessionStorage.setItem("dissensoSetoresCarregados", "1");
+
+        // Extrai nomes dos roles (ex: ["Suprimentos", "Jurídico"])
+        const roleNames = (data.roles || []).map(r => (r.name || "").toLowerCase());
+        if (data.role) roleNames.push(data.role.toLowerCase());
+
+        // Salva no localStorage para uso futuro
+        localStorage.setItem("userSetores", JSON.stringify(roleNames));
+        localStorage.setItem("userIsAdmin",
+            (data.role === "admin" || roleNames.includes("admin")) ? "1" : "0"
+        );
+
+        // Re-renderiza o toggle se o usuário tem suprimentos mas o toggle ainda não apareceu
+        const jaTemToggle = !!document.getElementById("modoToggleWrap");
+        const temSuprim   = _setorTemSuprimentos(roleNames);
+
+        if (temSuprim && !jaTemToggle) {
+            renderizarToggleModo();
+        }
+    } catch (e) {
+        // silencioso — não bloqueia o resto da aplicação
+    }
+}
+
+// Sobrescreve _getUsuario para considerar isAdmin do localStorage
+const _getUsuarioOriginal = _getUsuario;
+
 (function _bootDissenso() {
+    // Lê isAdmin do localStorage (salvo por _carregarSetoresDoUsuario)
+    const isAdminCache = localStorage.getItem("userIsAdmin") === "1";
+    if (isAdminCache) {
+        // Garante que o campo role reflete admin para a próxima chamada de _getUsuario
+        const roleAtual = (localStorage.getItem("userRole") || "").toLowerCase();
+        if (roleAtual !== "admin") localStorage.setItem("userRole", "admin");
+    }
+
     // Tentativa imediata
-    if (_dissensoAutoInit()) return;
+    if (_dissensoAutoInit()) {
+        // Mesmo que o toggle já apareça, carrega setores para garantir dados frescos
+        _carregarSetoresDoUsuario();
+        return;
+    }
 
     // MutationObserver: monitora o DOM até o chat-card aparecer
     const observer = new MutationObserver(() => {
-        if (_dissensoAutoInit()) observer.disconnect();
+        if (_dissensoAutoInit()) {
+            observer.disconnect();
+            _carregarSetoresDoUsuario();
+        }
     });
     observer.observe(document.body || document.documentElement, {
         childList: true, subtree: true
     });
 
-    // Polling de segurança por até 20s
+    // Polling de segurança — também tenta carregar setores via API
+    // mesmo antes do chat-card aparecer, para ter os dados prontos
     let n = 0;
+    let apiCarregada = false;
     const poll = setInterval(() => {
         n++;
+
+        // Carrega setores via API na primeira iteração
+        if (!apiCarregada) {
+            apiCarregada = true;
+            _carregarSetoresDoUsuario();
+        }
+
         if (_dissensoAutoInit() || n > 40) {
             clearInterval(poll);
             observer.disconnect();
